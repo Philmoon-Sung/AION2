@@ -609,7 +609,7 @@
         let currentItemToAddToPlaylist = null; 
         let currentEditingItemId = null; 
 
-        // --- 유틸리티 함수 (이전에 정의된 함수들) ---
+        // --- 유틸리티 함수 ---
         function getYouTubeId(url) {
             if (!url) return '';
             let videoId = '';
@@ -1323,7 +1323,7 @@
 
             // auth.onAuthStateChanged가 대부분의 초기화를 처리합니다.
             // 페이지 로드 시 로그인 폼을 기본적으로 표시합니다.
-            if(loginFormContainer) { // loginFormContainer가 null이 아닐 때만 실행
+            if(loginFormContainer) { 
                  loginFormContainer.classList.remove('hidden');
             }
             // Firebase Auth 상태 변경 리스너는 이미 스크립트 상단에서 설정되어 호출됩니다.
