@@ -153,7 +153,7 @@
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
             background-color: rgba(0,0,0,0.85); 
-            display: flex; /* 기본적으로 flex로 설정하여 JS에서 hidden 클래스 토글 */
+            display: flex; 
             align-items: center;
             justify-content: center;
             z-index: 9999; 
@@ -529,7 +529,7 @@
             projectId: "aion-18c27", 
             storageBucket: "aion-18c27.appspot.com", 
             messagingSenderId: "496946227122", 
-            appId: "AION"  // YOUR_APP_ID를 실제 값으로 변경해주세요.
+            appId: "AION" 
         };
 
         firebase.initializeApp(firebaseConfig);
@@ -1301,7 +1301,10 @@
                 homeNavItemMobile.classList.add(activeNavClass);
                 homeNavItemMobile.classList.remove(inactiveNavClass);
             }
-            document.getElementById('home').classList.add('active');
+            if(document.getElementById('home')) { // home 요소가 있는지 확인 후 active 클래스 추가
+                document.getElementById('home').classList.add('active');
+            }
+
 
             // 네비게이션 아이템 이벤트 리스너 설정
             document.querySelectorAll('#desktopSidebar .nav-item, #mobileSidebar .nav-item').forEach(item => {
@@ -1324,7 +1327,7 @@
             // 페이지 로드 시 로그인 폼을 기본적으로 표시합니다.
             // auth.onAuthStateChanged가 실행되면 로그인 상태에 따라 폼이 숨겨지거나 계속 표시됩니다.
             if(loginFormContainer) { 
-                 loginFormContainer.classList.remove('hidden');
+                 loginFormContainer.classList.remove('hidden'); // 초기에 로그인 폼을 보이도록 설정
                  console.log("DOMContentLoaded: Login form made visible initially.");
             }
         });
@@ -1376,15 +1379,14 @@
                 e.preventDefault();
                 const email = loginForm.loginEmail.value;
                 const password = loginForm.loginPassword.value;
-                loginErrorText.textContent = '';
+                if (loginErrorText) loginErrorText.textContent = '';
                 try {
                     console.log("Attempting login with email:", email);
                     await auth.signInWithEmailAndPassword(email, password);
-                    // onAuthStateChanged가 UI 업데이트 및 데이터 로딩을 처리합니다.
                     console.log("Login attempt successful for:", email); 
                 } catch (error) {
                     console.error("Login failed:", error);
-                    loginErrorText.textContent = "로그인 실패: " + error.message;
+                    if (loginErrorText) loginErrorText.textContent = "로그인 실패: " + error.message;
                     showToast("로그인 실패: " + error.message);
                 }
             });
