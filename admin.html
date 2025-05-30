@@ -153,7 +153,7 @@
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
             background-color: rgba(0,0,0,0.85); 
-            display: flex; 
+            display: flex; /* 기본적으로 flex로 설정하여 JS에서 hidden 클래스 토글 */
             align-items: center;
             justify-content: center;
             z-index: 9999; 
@@ -528,8 +528,8 @@
             authDomain: "aion-18c27.firebaseapp.com", 
             projectId: "aion-18c27", 
             storageBucket: "aion-18c27.appspot.com", 
-            messagingSenderId: "YOUR_MESSAGING_SENDER_ID", 
-            appId: "YOUR_APP_ID" 
+            messagingSenderId: "496946227122", 
+            appId: "AION"  // YOUR_APP_ID를 실제 값으로 변경해주세요.
         };
 
         firebase.initializeApp(firebaseConfig);
@@ -1321,13 +1321,87 @@
             if (mobileSidebarOverlay) mobileSidebarOverlay.addEventListener('click', closeMobileSidebar);
 
 
-            // auth.onAuthStateChanged가 대부분의 초기화를 처리합니다.
             // 페이지 로드 시 로그인 폼을 기본적으로 표시합니다.
+            // auth.onAuthStateChanged가 실행되면 로그인 상태에 따라 폼이 숨겨지거나 계속 표시됩니다.
             if(loginFormContainer) { 
                  loginFormContainer.classList.remove('hidden');
+                 console.log("DOMContentLoaded: Login form made visible initially.");
             }
-            // Firebase Auth 상태 변경 리스너는 이미 스크립트 상단에서 설정되어 호출됩니다.
         });
+
+        // --- 인증 관련 함수 ---
+        auth.onAuthStateChanged(async (user) => {
+            console.log("Auth state changed. User:", user ? user.uid : "No user");
+            if (user) {
+                currentUser = user;
+                // 로그인 성공 시 가장 먼저 로그인 폼 숨김
+                if (loginFormContainer) {
+                    loginFormContainer.classList.add('hidden');
+                    console.log("User logged in. Login form hidden.");
+                }
+                document.body.classList.add('user-logged-in');
+
+                try {
+                    const idTokenResult = await user.getIdTokenResult(true); 
+                    isAdmin = idTokenResult.claims.admin === true;
+                    console.log("isAdmin:", isAdmin, "Claims:", idTokenResult.claims);
+                } catch (error) {
+                    console.error("Error getting ID token result:", error);
+                    isAdmin = false;
+                }
+                
+                updateUIAfterLogin();
+                await loadUserSpecificDataFromFirestore(); 
+                loadContentItemsFromFirestore(); 
+
+            } else {
+                currentUser = null;
+                isAdmin = false;
+                // 로그아웃 또는 비로그인 시 로그인 폼 표시
+                if (loginFormContainer) {
+                    loginFormContainer.classList.remove('hidden');
+                    console.log("User signed out or not logged in. Login form shown.");
+                }
+                document.body.classList.remove('user-logged-in');
+                document.body.classList.remove('admin-logged-in'); 
+
+                updateUIAfterLogout();
+                clearUserSpecificDataAndUI();
+                loadContentItemsFromFirestore(); 
+            }
+        });
+
+        if (loginForm) {
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = loginForm.loginEmail.value;
+                const password = loginForm.loginPassword.value;
+                loginErrorText.textContent = '';
+                try {
+                    console.log("Attempting login with email:", email);
+                    await auth.signInWithEmailAndPassword(email, password);
+                    // onAuthStateChanged가 UI 업데이트 및 데이터 로딩을 처리합니다.
+                    console.log("Login attempt successful for:", email); 
+                } catch (error) {
+                    console.error("Login failed:", error);
+                    loginErrorText.textContent = "로그인 실패: " + error.message;
+                    showToast("로그인 실패: " + error.message);
+                }
+            });
+        }
+
+        async function handleLogout() {
+            try {
+                await auth.signOut();
+                console.log("Logout successful.");
+            } catch (error) {
+                console.error("Logout failed:", error);
+                showToast("로그아웃 실패: " + error.message);
+            }
+        }
+        if (logoutButton) logoutButton.addEventListener('click', handleLogout);
+        if (logoutButtonMobile) logoutButtonMobile.addEventListener('click', handleLogout);
+
 
         /*
         --- Firestore 보안 규칙 예시 (Firebase Console에 설정 필요) ---
