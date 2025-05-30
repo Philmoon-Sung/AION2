@@ -41,7 +41,7 @@
         .horizontal-scroll::-webkit-scrollbar { height: 6px; }
         .horizontal-scroll::-webkit-scrollbar-thumb { background: #8A2BE2; border-radius: 3px;}
 
-        .modal.hidden { display: none; }
+        .modal.hidden { display: none !important; } /* hidden 클래스에 !important 추가 */
         .modal-content { max-height: 80vh; }
 
         .item-action-icon-wrapper { 
@@ -72,7 +72,7 @@
         .item-action-icon:hover { opacity: 1; transform: scale(1.15); }
         
         .recommend-checkbox-icon.recommended, .like-item-button.liked { 
-            color: #facc15; /* 추천 및 좋아요 시 아이콘 색상 */
+            color: #facc15; 
         }
         .subscribe-artist-icon { 
             color: #cbd5e1; 
@@ -82,29 +82,29 @@
             margin-left: 0.25rem; 
         }
         .subscribe-artist-icon.subscribed {
-            color: #ef4444; /* 구독 시 아이콘 색상 */
+            color: #ef4444; 
         }
         .subscribe-artist-icon:hover {
             transform: scale(1.2);
         }
         .youtube-playable:hover .item-action-icon { opacity: 0.8; }
-        .youtube-playable { position: relative; padding-top: 3rem; } /* 모바일에서 아이콘 공간 확보 */
+        .youtube-playable { position: relative; padding-top: 3rem; } 
 
         .toast-message {
             position: fixed; bottom: 20px; left: 50%;
             transform: translateX(-50%); background-color: #8A2BE2;
             color: white; padding: 10px 20px; border-radius: 8px;
-            z-index: 10000; /* 다른 모달보다 위에 표시되도록 z-index 증가 */
+            z-index: 10000; 
             opacity: 0; transition: opacity 0.5s ease-in-out;
             font-size: 0.9rem; box-shadow: 0 4px 15px rgba(138, 43, 226, 0.4);
         }
         .toast-message.show { opacity: 1; }
         .item-title { font-size: 0.75rem; font-weight: 500; line-height: 1.2; } 
         .item-artist, .item-tags { font-size: 0.65rem; line-height: 1.2; } 
-        @media (min-width: 768px) { /* 데스크탑 뷰 */
+        @media (min-width: 768px) { 
             .item-title { font-size: 0.875rem; } 
             .item-artist, .item-tags { font-size: 0.75rem; } 
-            .youtube-playable { padding-top: 0; } /* 데스크탑에서는 아이콘 공간 확보 불필요 */
+            .youtube-playable { padding-top: 0; } 
         }
         .item-artist-wrapper { display: flex; align-items: center; } 
 
@@ -143,23 +143,21 @@
         .thumbnail-image-container {
             width: 100%;
             overflow: hidden;
-            border-radius: 0.375rem; /* rounded-md */
+            border-radius: 0.375rem; 
         }
         .thumbnail-image {
             width: 100%;
             object-fit: cover;
         }
-        /* 로그인 폼 스타일 */
         #loginFormContainer {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background-color: rgba(0,0,0,0.85); /* 배경 어둡게 */
-            display: flex; /* 기본적으로 flex로 설정하여 auth 상태에 따라 hidden 클래스 토글 */
+            background-color: rgba(0,0,0,0.85); 
+            display: flex; 
             align-items: center;
             justify-content: center;
-            z-index: 9999; /* 다른 모달보다 위에 표시 */
+            z-index: 9999; 
         }
-        /* 관리자 전용 UI 스타일 */
         .admin-only { display: none !important; } 
         body.admin-logged-in .admin-only { display: flex !important; } 
         body.admin-logged-in .admin-only-block { display: block !important; }
@@ -168,7 +166,8 @@
 </head>
 <body class="flex h-screen overflow-hidden">
 
-    <div id="loginFormContainer"> <div class="glassmorphism p-8 rounded-lg shadow-xl w-full max-w-sm text-white">
+    <div id="loginFormContainer"> 
+        <div class="glassmorphism p-8 rounded-lg shadow-xl w-full max-w-sm text-white">
             <h2 class="text-2xl font-semibold mb-6 text-center neon-accent">AION Admin Login</h2>
             <form id="loginForm" class="space-y-4">
                 <div>
@@ -273,8 +272,7 @@
                     <i class="fas fa-bars text-xl"></i>
                 </button>
                 <div class="flex-grow relative">
-                    {/* */}
-                </div> 
+                    </div> 
                 <div class="flex items-center space-x-2 sm:space-x-4">
                     <button class="p-2 rounded-full hover:bg-purple-700/30">
                         <i class="fas fa-bell text-lg sm:text-xl"></i>
@@ -527,9 +525,9 @@
         // --- Firebase 구성 ---
         const firebaseConfig = {
             apiKey: "AIzaSyCAfrCXrHfYWUrvZ-SKqocCXu5QNCbFRH8", 
-            authDomain: "YOUR_PROJECT_ID.firebaseapp.com", 
+            authDomain: "aion-18c27.firebaseapp.com", 
             projectId: "aion-18c27", 
-            storageBucket: "YOUR_PROJECT_ID.appspot.com", 
+            storageBucket: "aion-18c27.appspot.com", 
             messagingSenderId: "YOUR_MESSAGING_SENDER_ID", 
             appId: "YOUR_APP_ID" 
         };
@@ -548,7 +546,7 @@
         let userSubscribedArtistsSet = new Set(); 
         let contentListenerUnsubscribe = null; 
 
-        // --- UI 요소 가져오기 ---
+        // --- UI 요소 가져오기 (스크립트 상단으로 이동) ---
         const loginFormContainer = document.getElementById('loginFormContainer');
         const loginForm = document.getElementById('loginForm');
         const loginErrorText = document.getElementById('loginError');
@@ -575,7 +573,7 @@
         const mobileSidebarOverlay = document.getElementById('mobileSidebarOverlay');
         const mobileMenuButton = document.getElementById('mobileMenuButton');
         const closeMobileSidebarButton = document.getElementById('closeMobileSidebarButton');
-        const uploadForm = document.getElementById('uploadForm');
+        const uploadFormElement = document.getElementById('uploadForm'); // uploadForm -> uploadFormElement로 변경 (함수 이름과 충돌 방지)
         const uploadYoutubeLinkInput = document.getElementById('uploadYoutubeLink'); 
         const uploadThumbnailPreview = document.getElementById('uploadThumbnailPreview'); 
         const youtubeModal = document.getElementById('youtubeModal');
@@ -608,6 +606,8 @@
         const toastMessageElement = document.getElementById('toastMessage');
         const uploadContentTypeSelect = document.getElementById('uploadContentType');
         const youtubeLinkGroup = document.getElementById('youtubeLinkGroup');
+        let currentItemToAddToPlaylist = null; 
+        let currentEditingItemId = null; 
 
         // --- 유틸리티 함수 ---
         function getYouTubeId(url) {
@@ -659,19 +659,6 @@
             });
         }
         
-        document.querySelectorAll('#desktopSidebar .nav-item, #mobileSidebar .nav-item').forEach(item => {
-            item.addEventListener('click', (e) => {
-                e.preventDefault();
-                const sectionId = item.dataset.section;
-                if (sectionId) {
-                    switchSection(sectionId);
-                    if (mobileSidebar && !mobileSidebar.classList.contains('-translate-x-full')) {
-                        closeMobileSidebar(); 
-                    }
-                }
-            });
-        });
-        
         function openMobileSidebar() {
             if (mobileSidebar && mobileSidebarOverlay) {
                 mobileSidebar.classList.remove('-translate-x-full');
@@ -685,10 +672,10 @@
                 mobileSidebarOverlay.classList.add('hidden');
             }
         }
-
+        
         // --- UI 업데이트 함수 ---
         function updateUIAfterLogin() {
-            if (!currentUser) return;
+            if (!currentUser || !logoutButton || !logoutButtonMobile || !profileLinkText || !profileLinkTextMobile || !userAvatar) return;
             console.log("Updating UI for logged-in user.");
 
             logoutButton.classList.remove('hidden');
@@ -709,6 +696,7 @@
         }
 
         function updateUIAfterLogout() {
+            if (!logoutButton || !logoutButtonMobile || !profileLinkText || !profileLinkTextMobile || !userAvatar) return;
             console.log("Updating UI for logged-out user.");
             logoutButton.classList.add('hidden');
             logoutButtonMobile.classList.add('hidden');
@@ -721,6 +709,7 @@
         function updateProfileSection() {
             const profileContent = document.getElementById('profileContent');
             const profileNotLoggedIn = document.getElementById('profileNotLoggedIn');
+            if (!profileContent || !profileNotLoggedIn) return;
 
             if (currentUser) {
                 profileContent.classList.remove('hidden');
@@ -898,8 +887,6 @@
                 console.error("Error loading user specific data:", error);
                 showToast("사용자 데이터를 불러오는 중 오류가 발생했습니다.");
             }
-            // renderPageContent()는 loadContentItemsFromFirestore 완료 후 또는 여기서 직접 호출
-            // 여기서는 loadContentItemsFromFirestore에서 renderPageContent를 호출하도록 함
         }
 
         function loadContentItemsFromFirestore() {
@@ -1071,8 +1058,7 @@
             } else { clearContainer(subscribedArtistsContainer, subscribedArtistsPlaceholder, "아직 구독한 아티스트가 없습니다."); }
         }
 
-        // --- 플레이리스트 함수들 (이전 코드와 거의 동일, currentUser 체크 추가) ---
-        // openAddToPlaylistModal, renderMyPlaylists, openPlaylistDetailModal, removeSongFromPlaylist, deletePlaylistButton 핸들러 등
+        // --- 플레이리스트 함수들 ---
         if(createPlaylistButton) {
             createPlaylistButton.addEventListener('click', () => {
                 if (!currentUser) { showToast('로그인이 필요합니다.'); return; }
@@ -1268,7 +1254,7 @@
         // --- 업로드 폼 필드 토글 ---
         if (uploadContentTypeSelect) {
             uploadContentTypeSelect.addEventListener('change', toggleUploadFields);
-            toggleUploadFields(); // 초기 상태 설정
+            toggleUploadFields(); 
         }
         function toggleUploadFields() {
              if (!uploadContentTypeSelect || !youtubeLinkGroup) return;
@@ -1318,8 +1304,8 @@
             document.getElementById('home').classList.add('active');
 
             // auth.onAuthStateChanged가 대부분의 초기화를 처리합니다.
-            // 페이지가 처음 로드될 때 로그인 폼을 표시할지 여부를 결정합니다.
-            if(loginFormContainer && !auth.currentUser) { // 현재 사용자가 없으면 로그인 폼 표시
+            // 페이지 로드 시 로그인 폼을 기본적으로 표시합니다.
+            if(loginFormContainer) {
                  loginFormContainer.classList.remove('hidden');
             }
             // Firebase Auth 상태 변경 리스너는 이미 스크립트 상단에서 설정되어 호출됩니다.
@@ -1342,10 +1328,6 @@
         --- Firebase Custom Claims 설정 알림 ---
         // 관리자 기능을 사용하려면 Firebase Admin SDK를 사용하여
         // 관리자 계정에 { admin: true } Custom Claim을 설정해야 합니다.
-        // 예: admin.auth().setCustomUserClaims(uid, {admin: true});
-        --- Cloud Function (incrementViewCount) 배포 알림 ---
-        // 조회수 증가 기능을 사용하려면 'incrementViewCount' Cloud Function을
-        // Firebase 프로젝트에 배포해야 합니다.
         */
     </script>
 </body>
