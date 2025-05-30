@@ -41,7 +41,7 @@
         .horizontal-scroll::-webkit-scrollbar { height: 6px; }
         .horizontal-scroll::-webkit-scrollbar-thumb { background: #8A2BE2; border-radius: 3px;}
 
-        .modal.hidden { display: none !important; } /* hidden 클래스에 !important 추가 */
+        .modal.hidden { display: none !important; }
         .modal-content { max-height: 80vh; }
 
         .item-action-icon-wrapper { 
@@ -546,7 +546,7 @@
         let userSubscribedArtistsSet = new Set(); 
         let contentListenerUnsubscribe = null; 
 
-        // --- UI 요소 가져오기 (스크립트 상단으로 이동) ---
+        // --- UI 요소 가져오기 ---
         const loginFormContainer = document.getElementById('loginFormContainer');
         const loginForm = document.getElementById('loginForm');
         const loginErrorText = document.getElementById('loginError');
@@ -573,7 +573,7 @@
         const mobileSidebarOverlay = document.getElementById('mobileSidebarOverlay');
         const mobileMenuButton = document.getElementById('mobileMenuButton');
         const closeMobileSidebarButton = document.getElementById('closeMobileSidebarButton');
-        const uploadFormElement = document.getElementById('uploadForm'); // uploadForm -> uploadFormElement로 변경 (함수 이름과 충돌 방지)
+        const uploadFormElement = document.getElementById('uploadForm'); 
         const uploadYoutubeLinkInput = document.getElementById('uploadYoutubeLink'); 
         const uploadThumbnailPreview = document.getElementById('uploadThumbnailPreview'); 
         const youtubeModal = document.getElementById('youtubeModal');
@@ -609,7 +609,7 @@
         let currentItemToAddToPlaylist = null; 
         let currentEditingItemId = null; 
 
-        // --- 유틸리티 함수 ---
+        // --- 유틸리티 함수 (이전에 정의된 함수들) ---
         function getYouTubeId(url) {
             if (!url) return '';
             let videoId = '';
@@ -639,7 +639,7 @@
                 toastMessageElement.classList.remove('show');
             }, 3000);
         }
-
+        
         // --- 네비게이션 및 기본 UI 로직 ---
         const activeNavClass = 'neon-accent-bg';
         const inactiveNavClass = 'hover:bg-purple-700/30';
@@ -1303,9 +1303,27 @@
             }
             document.getElementById('home').classList.add('active');
 
+            // 네비게이션 아이템 이벤트 리스너 설정
+            document.querySelectorAll('#desktopSidebar .nav-item, #mobileSidebar .nav-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const sectionId = item.dataset.section;
+                    if (sectionId) {
+                        switchSection(sectionId);
+                        if (mobileSidebar && !mobileSidebar.classList.contains('-translate-x-full')) {
+                            closeMobileSidebar(); 
+                        }
+                    }
+                });
+            });
+            if (mobileMenuButton) mobileMenuButton.addEventListener('click', openMobileSidebar);
+            if (closeMobileSidebarButton) closeMobileSidebarButton.addEventListener('click', closeMobileSidebar);
+            if (mobileSidebarOverlay) mobileSidebarOverlay.addEventListener('click', closeMobileSidebar);
+
+
             // auth.onAuthStateChanged가 대부분의 초기화를 처리합니다.
             // 페이지 로드 시 로그인 폼을 기본적으로 표시합니다.
-            if(loginFormContainer) {
+            if(loginFormContainer) { // loginFormContainer가 null이 아닐 때만 실행
                  loginFormContainer.classList.remove('hidden');
             }
             // Firebase Auth 상태 변경 리스너는 이미 스크립트 상단에서 설정되어 호출됩니다.
