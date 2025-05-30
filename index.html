@@ -555,7 +555,7 @@
         apiKey: "AIzaSyCAfrCXrHfYWUrvZ-SKqocCXu5QNCbFRH8",
         authDomain: "aion-18c27.firebaseapp.com",
         projectId: "aion-18c27",
-        storageBucket: "aion-18c27.appspot.com", 
+        storageBucket: "aion-18c27.firebasestorage.app", 
         messagingSenderId: "496946227122",
         appId: "1:496946227122:web:3c7efdd7d014743f3126ab",
         measurementId: "G-K2F99M91CM"
@@ -569,7 +569,7 @@
 
       // --- 전역 변수 ---
         let currentUser = null; 
-        let isAdmin = false;    
+        let isAdmin = ture;    
         let allContentData = []; 
         let userLikedItemsMap = new Map();
         let userPlaylists = []; 
@@ -577,7 +577,7 @@
         let contentListenerUnsubscribe = null; 
         let loginProcessing = false;
 
-        // --- UI 요소 가져오기 (DOMContentLoaded 내에서 할당) ---
+        // --- UI 요소 가져오기 (DOMContentLoaded 내에서 할당될 변수들) ---
         let loginFormContainer, loginForm, loginErrorText, loginSubmitButton,
             logoutButton, logoutButtonMobile, userAvatar, profileLinkText, profileLinkTextMobile,
             newUploadsContainer, newUploadsPlaceholder, aionChartContainer, aionChartPlaceholder,
@@ -597,6 +597,7 @@
             uploadContentTypeSelect, youtubeLinkGroup;
         let currentItemToAddToPlaylist = null; 
         let currentEditingItemId = null; 
+        let handleLoginFormSubmit; // 로그인 폼 제출 핸들러를 저장할 변수
 
         // --- 유틸리티 함수 ---
         function getYouTubeId(url) {
@@ -621,8 +622,8 @@
         const thumbnailErrorPlaceholder = 'https://placehold.co/300x180/330033/FFFFFF?text=썸네일+오류';
 
         function showToast(message) {
-            if (!toastMessageElement) { // DOMContentLoaded 전에 호출될 수 있으므로 방어 코드 추가
-                console.warn("Toast element not ready, message:", message);
+            if (!toastMessageElement) { 
+                console.warn("Toast element not ready when trying to show message:", message);
                 return;
             }
             toastMessageElement.textContent = message;
@@ -668,7 +669,10 @@
         
         // --- UI 업데이트 함수 ---
         function updateUIAfterLogin() {
-            if (!currentUser || !logoutButton || !logoutButtonMobile || !profileLinkText || !profileLinkTextMobile || !userAvatar) return;
+            if (!currentUser || !logoutButton || !logoutButtonMobile || !profileLinkText || !profileLinkTextMobile || !userAvatar) {
+                console.warn("updateUIAfterLogin: currentUser or essential UI elements are null.");
+                return;
+            }
             console.log("Updating UI for logged-in user.");
 
             logoutButton.classList.remove('hidden');
@@ -689,7 +693,10 @@
         }
 
         function updateUIAfterLogout() {
-            if (!logoutButton || !logoutButtonMobile || !profileLinkText || !profileLinkTextMobile || !userAvatar) return;
+            if (!logoutButton || !logoutButtonMobile || !profileLinkText || !profileLinkTextMobile || !userAvatar) {
+                 console.warn("updateUIAfterLogout: Essential UI elements are null.");
+                return;
+            }
             console.log("Updating UI for logged-out user.");
             logoutButton.classList.add('hidden');
             logoutButtonMobile.classList.add('hidden');
@@ -811,6 +818,7 @@
         }
         
         function renderPageContent() {
+            if (!allContentData) allContentData = []; // 안전장치
             renderNewUploadsSection(allContentData);
             renderAionChart(allContentData);
             renderRecommendedMusicSection(allContentData);
@@ -1293,6 +1301,8 @@
             showToast('콘텐츠가 aion_content_firestore.json 파일로 내보내졌습니다.');
         }
         
+        let loginFormSubmitHandler = null; // 로그인 폼 핸들러를 저장할 변수
+
         // --- 인증 관련 함수 ---
         onAuthStateChanged(authInstance, async (user) => { 
             console.log("[AUTH STATE CHANGED] User object:", user ? user.uid : "No user");
@@ -1302,11 +1312,16 @@
                     loginFormContainer.classList.add('hidden');
                     console.log("[AUTH STATE CHANGED] Login form hidden.");
                 }
+                // 2. 로그인 폼 제출 이벤트 리스너 제거 (중복 실행 방지)
+                if (loginForm && loginFormSubmitHandler) {
+                    loginForm.removeEventListener('submit', loginFormSubmitHandler);
+                    console.log("[AUTH STATE CHANGED] Login form submit listener REMOVED.");
+                }
                 
                 currentUser = user;
                 document.body.classList.add('user-logged-in');
 
-                // 2. isAdmin 상태 확인 (비동기)
+                // 3. isAdmin 상태 확인 (비동기)
                 try {
                     const idTokenResult = await getIdTokenResult(currentUser, true); 
                     isAdmin = idTokenResult.claims.admin === true;
@@ -1316,7 +1331,7 @@
                     isAdmin = false;
                 }
                 
-                // 3. UI 업데이트 및 데이터 로드
+                // 4. UI 업데이트 및 데이터 로드
                 updateUIAfterLogin(); 
                 await loadUserSpecificDataFromFirestore(); 
                 loadContentItemsFromFirestore(); 
@@ -1335,6 +1350,42 @@
                 updateUIAfterLogout();
                 clearUserSpecificDataAndUI();
                 loadContentItemsFromFirestore(); 
+
+                // 로그인 폼 제출 이벤트 리스너 다시 추가
+                if (loginForm && !loginFormSubmitHandler) { // 핸들러가 없을 때만 추가 (중복 방지)
+                     loginFormSubmitHandler = async (e) => {
+                        e.preventDefault();
+                        if (loginProcessing) { 
+                            console.log("Login already in progress, ignoring duplicate submit.");
+                            return;
+                        }
+                        loginProcessing = true;
+                        if(loginSubmitButton) loginSubmitButton.disabled = true; 
+
+                        const email = loginForm.loginEmail.value;
+                        const password = loginForm.loginPassword.value;
+                        if (loginErrorText) loginErrorText.textContent = '';
+                        try {
+                            console.log("Attempting login with email:", email);
+                            await signInWithEmailAndPassword(authInstance, email, password); 
+                            console.log("Login attempt successful for:", email); 
+                        } catch (error) {
+                            console.error("Login failed:", error);
+                            if (loginErrorText) loginErrorText.textContent = "로그인 실패: " + error.message;
+                            showToast("로그인 실패: " + error.message);
+                        } finally {
+                            loginProcessing = false; 
+                            if(loginSubmitButton) loginSubmitButton.disabled = false; 
+                        }
+                    };
+                    loginForm.addEventListener('submit', loginFormSubmitHandler);
+                    console.log("[AUTH STATE CHANGED] Login form submit listener ADDED.");
+                } else if (loginForm && loginFormSubmitHandler) {
+                    // 이미 핸들러가 있다면, 다시 추가하지 않음 (혹은 이전 리스너 제거 후 추가)
+                     loginForm.removeEventListener('submit', loginFormSubmitHandler);
+                     loginForm.addEventListener('submit', loginFormSubmitHandler);
+                     console.log("[AUTH STATE CHANGED] Login form submit listener RE-ADDED.");
+                }
             }
         });
 
@@ -1404,6 +1455,15 @@
             uploadContentTypeSelect = document.getElementById('uploadContentType');
             youtubeLinkGroup = document.getElementById('youtubeLinkGroup');
 
+            console.log("Desktop sidebar element from DOMContentLoaded:", desktopSidebar);
+            if (!desktopSidebar || !mobileSidebar) {
+                console.error("CRITICAL ERROR: Sidebar elements not found in DOMContentLoaded. UI setup might fail.");
+                // 에러 발생 시 사용자에게 알림 (예: 로그인 폼에 메시지 표시)
+                if (loginFormContainer) loginFormContainer.classList.remove('hidden'); // 로그인 폼이라도 보이게
+                if (loginErrorText) loginErrorText.textContent = "UI 초기화 오류 발생. 새로고침 해주세요.";
+                return; 
+            }
+
 
             // 초기 홈 섹션 활성화
             const homeNavItemDesktop = desktopSidebar.querySelector('.nav-item[data-section="home"]');
@@ -1437,34 +1497,6 @@
             if (closeMobileSidebarButton) closeMobileSidebarButton.addEventListener('click', closeMobileSidebar);
             if (mobileSidebarOverlay) mobileSidebarOverlay.addEventListener('click', closeMobileSidebar);
 
-            // 로그인 폼 제출 이벤트 리스너
-            if (loginForm) {
-                loginForm.addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    if (loginProcessing) { 
-                        console.log("Login already in progress, ignoring duplicate submit.");
-                        return;
-                    }
-                    loginProcessing = true;
-                    if(loginSubmitButton) loginSubmitButton.disabled = true; 
-
-                    const email = loginForm.loginEmail.value;
-                    const password = loginForm.loginPassword.value;
-                    if (loginErrorText) loginErrorText.textContent = '';
-                    try {
-                        console.log("Attempting login with email:", email);
-                        await signInWithEmailAndPassword(authInstance, email, password); 
-                        console.log("Login attempt successful for:", email); 
-                    } catch (error) {
-                        console.error("Login failed:", error);
-                        if (loginErrorText) loginErrorText.textContent = "로그인 실패: " + error.message;
-                        showToast("로그인 실패: " + error.message);
-                    } finally {
-                        loginProcessing = false; 
-                        if(loginSubmitButton) loginSubmitButton.disabled = false; 
-                    }
-                });
-            }
 
             // 로그아웃 버튼 이벤트 리스너
             async function handleLogout() { 
@@ -1596,7 +1628,7 @@
             }
 
 
-            // 페이지 로드 시 로그인 폼을 기본적으로 표시합니다.
+            // 페이지 로드 시 로그인 폼을 명시적으로 표시 (auth.onAuthStateChanged가 이후 상태 업데이트)
             if(loginFormContainer) { 
                  loginFormContainer.classList.remove('hidden'); 
                  console.log("DOMContentLoaded: Login form explicitly made visible initially. (End of DOMContentLoaded)");
