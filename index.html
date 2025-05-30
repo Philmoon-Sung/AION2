@@ -525,7 +525,7 @@
         onAuthStateChanged, 
         signInWithEmailAndPassword, 
         signOut,
-        getIdTokenResult // getIdTokenResult import 추가
+        getIdTokenResult 
       } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-auth.js";
       import { 
         getFirestore, 
@@ -563,7 +563,6 @@
 
       // Firebase 앱 초기화
       const app = initializeApp(firebaseConfig);
-      // const analytics = getAnalytics(app); 
       const db = getFirestore(app);
       const authInstance = getAuth(app); 
       const functionsInstance = getFunctions(app); 
@@ -622,7 +621,10 @@
         const thumbnailErrorPlaceholder = 'https://placehold.co/300x180/330033/FFFFFF?text=썸네일+오류';
 
         function showToast(message) {
-            if (!toastMessageElement) return;
+            if (!toastMessageElement) { // DOMContentLoaded 전에 호출될 수 있으므로 방어 코드 추가
+                console.warn("Toast element not ready, message:", message);
+                return;
+            }
             toastMessageElement.textContent = message;
             toastMessageElement.classList.add('show');
             setTimeout(() => {
@@ -635,7 +637,7 @@
         const inactiveNavClass = 'hover:bg-purple-700/30';
         
         function switchSection(sectionId) {
-            if (!contentSections) return; // DOM 요소가 아직 초기화되지 않았을 수 있음
+            if (!contentSections) return; 
             contentSections.forEach(section => section.classList.remove('active'));
             const targetSection = document.getElementById(sectionId);
             if (targetSection) targetSection.classList.add('active');
@@ -1306,7 +1308,7 @@
 
                 // 2. isAdmin 상태 확인 (비동기)
                 try {
-                    const idTokenResult = await getIdTokenResult(currentUser, true); // currentUser.getIdTokenResult -> getIdTokenResult(currentUser, true)
+                    const idTokenResult = await getIdTokenResult(currentUser, true); 
                     isAdmin = idTokenResult.claims.admin === true;
                     console.log("[AUTH STATE CHANGED] isAdmin determined:", isAdmin, "Claims:", idTokenResult.claims);
                 } catch (error) {
@@ -1487,7 +1489,7 @@
             if (exportBtnMobileSidebar) exportBtnMobileSidebar.addEventListener('click', exportContentToJson);
 
             // 기타 모달 버튼 이벤트 리스너
-            if(createPlaylistButton) { /* ... */ } // 이전 코드와 동일하게 유지
+            if(createPlaylistButton) { /* ... */ } 
             if(cancelCreatePlaylist && createPlaylistModal) { /* ... */ }
             if(confirmCreatePlaylist && newPlaylistNameInput && createPlaylistModal) { /* ... */ }
             if(cancelAddToPlaylist && addToPlaylistModal) { /* ... */ }
