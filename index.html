@@ -3,541 +3,63 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AION - Admin Panel (Firestore Realtime)</title>
+    <title>AION - Admin Panel (Firebase Modular SDK)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js"></script>
+    <script type="module">
+      // Firebase SDK 모듈 가져오기
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
+      import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-analytics.js";
+      import { 
+        getAuth, 
+        onAuthStateChanged, 
+        signInWithEmailAndPassword, 
+        signOut 
+      } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-auth.js";
+      import { 
+        getFirestore, 
+        collection, 
+        addDoc, 
+        doc, 
+        getDoc, // getDoc 추가
+        getDocs, // getDocs 추가
+        setDoc, // setDoc 추가
+        updateDoc, 
+        deleteDoc, 
+        onSnapshot, 
+        query, 
+        orderBy, 
+        serverTimestamp, 
+        arrayUnion, 
+        arrayRemove,
+        increment // increment 추가
+      } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore.js";
+      import { 
+        getFunctions, 
+        httpsCallable 
+      } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-functions.js";
 
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #0a031a; 
-            color: #e0e0e0; 
-            overscroll-behavior: none; 
-        }
-        .neon-accent { color: #8A2BE2; }
-        .neon-accent-bg { background-color: #8A2BE2; }
-        .sidebar-icon { transition: all 0.3s ease; }
-        .sidebar-icon:hover { color: #8A2BE2; transform: scale(1.1); }
-        .content-section { display: none; }
-        .content-section.active { display: block; }
-        .glassmorphism {
-            background: rgba(20, 10, 40, 0.6);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border-radius: 12px;
-            border: 1px solid rgba(138, 43, 226, 0.3);
-        }
-        .scrollable-content::-webkit-scrollbar { width: 8px; }
-        .scrollable-content::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
-        .scrollable-content::-webkit-scrollbar-thumb { background: #8A2BE2; border-radius: 10px; }
-        .scrollable-content::-webkit-scrollbar-thumb:hover { background: #701ebd; }
-        
-        .horizontal-scroll::-webkit-scrollbar { height: 6px; }
-        .horizontal-scroll::-webkit-scrollbar-thumb { background: #8A2BE2; border-radius: 3px;}
+      // Firebase 구성 객체 (사용자님의 실제 값으로 채워져야 합니다)
+      const firebaseConfig = {
+        apiKey: "AIzaSyCAfrCXrHfYWUrvZ-SKqocCXu5QNCbFRH8", // 제공해주신 값
+        authDomain: "aion-18c27.firebaseapp.com",       // 제공해주신 값
+        projectId: "aion-18c27",                      // 제공해주신 값
+        storageBucket: "aion-18c27.appspot.com",      // 일반적인 형식으로 수정 (필요시 Firebase 콘솔에서 확인)
+        messagingSenderId: "496946227122",            // 제공해주신 값
+        appId: "1:496946227122:web:3c7efdd7d014743f3126ab", // 제공해주신 값
+        measurementId: "G-K2F99M91CM"                 // 제공해주신 값
+      };
 
-        .modal.hidden { display: none !important; }
-        .modal-content { max-height: 80vh; }
+      // Firebase 앱 초기화
+      const app = initializeApp(firebaseConfig);
+      const analytics = getAnalytics(app); 
+      const db = getFirestore(app);
+      const authInstance = getAuth(app); 
+      const functionsInstance = getFunctions(app); 
 
-        .item-action-icon-wrapper { 
-            position: absolute;
-            top: 0.5rem; 
-            right: 0.5rem; 
-            display: flex; 
-            flex-direction: row; 
-            align-items: center; 
-            gap: 0.35rem; 
-            z-index: 10;
-        }
-        .item-action-icon {
-            background-color: rgba(0,0,0,0.7);
-            color: white;
-            border-radius: 50%;
-            cursor: pointer;
-            transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
-            opacity: 0; 
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 2.5rem; 
-            height: 2.5rem; 
-            font-size: 1.125rem; 
-            padding: 0.5rem; 
-        }
-        .item-action-icon:hover { opacity: 1; transform: scale(1.15); }
-        
-        .recommend-checkbox-icon.recommended, .like-item-button.liked { 
-            color: #facc15; 
-        }
-        .subscribe-artist-icon { 
-            color: #cbd5e1; 
-            cursor: pointer;
-            transition: color 0.2s ease-in-out, transform 0.2s ease-in-out;
-            font-size: 0.8rem; 
-            margin-left: 0.25rem; 
-        }
-        .subscribe-artist-icon.subscribed {
-            color: #ef4444; 
-        }
-        .subscribe-artist-icon:hover {
-            transform: scale(1.2);
-        }
-        .youtube-playable:hover .item-action-icon { opacity: 0.8; }
-        .youtube-playable { position: relative; padding-top: 3rem; } 
-
-        .toast-message {
-            position: fixed; bottom: 20px; left: 50%;
-            transform: translateX(-50%); background-color: #8A2BE2;
-            color: white; padding: 10px 20px; border-radius: 8px;
-            z-index: 10000; 
-            opacity: 0; transition: opacity 0.5s ease-in-out;
-            font-size: 0.9rem; box-shadow: 0 4px 15px rgba(138, 43, 226, 0.4);
-        }
-        .toast-message.show { opacity: 1; }
-        .item-title { font-size: 0.75rem; font-weight: 500; line-height: 1.2; } 
-        .item-artist, .item-tags { font-size: 0.65rem; line-height: 1.2; } 
-        @media (min-width: 768px) { 
-            .item-title { font-size: 0.875rem; } 
-            .item-artist, .item-tags { font-size: 0.75rem; } 
-            .youtube-playable { padding-top: 0; } 
-        }
-        .item-artist-wrapper { display: flex; align-items: center; } 
-
-        .playlist-card {
-            display: flex;
-            align-items: center;
-            padding: 0.75rem; 
-            border-radius: 0.5rem; 
-            transition: background-color 0.2s;
-        }
-        .playlist-card:hover {
-            background-color: rgba(138, 43, 226, 0.2); 
-        }
-        .playlist-cover {
-            width: 4rem; 
-            height: 4rem; 
-            border-radius: 0.375rem; 
-            object-fit: cover;
-            margin-right: 0.75rem; 
-            background-color: rgba(138, 43, 226, 0.3); 
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-         .playlist-cover i {
-            font-size: 1.5rem; 
-            color: rgba(224, 224, 224, 0.7); 
-        }
-
-        #mobileSidebar.hidden {
-            transform: translateX(-100%);
-        }
-        #mobileSidebarOverlay.hidden {
-            display: none;
-        }
-        .thumbnail-image-container {
-            width: 100%;
-            overflow: hidden;
-            border-radius: 0.375rem; 
-        }
-        .thumbnail-image {
-            width: 100%;
-            object-fit: cover;
-        }
-        #loginFormContainer {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background-color: rgba(0,0,0,0.85); 
-            display: flex; 
-            align-items: center;
-            justify-content: center;
-            z-index: 9999; 
-        }
-        .admin-only { display: none !important; } 
-        body.admin-logged-in .admin-only { display: flex !important; } 
-        body.admin-logged-in .admin-only-block { display: block !important; }
-        body.admin-logged-in .admin-only-inline-block { display: inline-block !important; }
-    </style>
-</head>
-<body class="flex h-screen overflow-hidden">
-
-    <div id="loginFormContainer"> 
-        <div class="glassmorphism p-8 rounded-lg shadow-xl w-full max-w-sm text-white">
-            <h2 class="text-2xl font-semibold mb-6 text-center neon-accent">AION Admin Login</h2>
-            <form id="loginForm" class="space-y-4">
-                <div>
-                    <label for="loginEmail" class="block text-sm font-medium mb-1">이메일</label>
-                    <input type="email" id="loginEmail" name="loginEmail" required class="w-full p-3 rounded-lg bg-black/30 border border-purple-700/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm" autocomplete="email">
-                </div>
-                <div>
-                    <label for="loginPassword" class="block text-sm font-medium mb-1">비밀번호</label>
-                    <input type="password" id="loginPassword" name="loginPassword" required class="w-full p-3 rounded-lg bg-black/30 border border-purple-700/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm" autocomplete="current-password">
-                </div>
-                <button type="submit" class="w-full px-6 py-3 neon-accent-bg text-white rounded-lg font-semibold hover:bg-purple-700 transition-colors">로그인</button>
-            </form>
-            <p id="loginError" class="text-red-400 text-sm mt-4 text-center"></p>
-        </div>
-    </div>
-
-    <aside id="desktopSidebar" class="hidden md:flex w-64 glassmorphism p-4 space-y-8 flex-col items-start fixed inset-y-0 left-0 z-30">
-        <div class="flex items-center justify-start space-x-3 mb-10"> 
-            <svg class="h-14 w-14 neon-accent" viewBox="0 0 24 24" fill="currentColor"> <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
-            </svg>
-            <h1 class="text-4xl font-bold">AION</h1> 
-        </div>
-        <nav class="space-y-4 flex-grow w-full">
-            <a href="#" class="nav-item flex items-center space-x-3 p-3 rounded-lg hover:bg-purple-700/30 transition-colors duration-200 active-nav" data-section="home">
-                <i class="fas fa-home fa-fw text-xl sidebar-icon"></i>
-                <span class="text-sm">홈</span>
-            </a>
-            <a href="#" class="nav-item flex items-center space-x-3 p-3 rounded-lg hover:bg-purple-700/30 transition-colors duration-200" data-section="library">
-                <i class="fas fa-list-alt fa-fw text-xl sidebar-icon"></i> 
-                <span class="text-sm">플레이 리스트</span> 
-            </a>
-            <div id="exportContentButtonContainerSidebar" class="admin-only-block" style="display: none;"> 
-                 <button id="exportContentButtonSidebar" class="w-full flex items-center space-x-3 p-3 rounded-lg text-sm text-gray-300 hover:bg-blue-700/30 transition-colors duration-200">
-                    <i class="fas fa-file-export fa-fw text-xl sidebar-icon"></i>
-                    <span class="text-sm">JSON 내보내기</span>
-                </button>
-           </div>
-            <a href="#" class="nav-item admin-only flex items-center space-x-3 p-3 rounded-lg hover:bg-purple-700/30 transition-colors duration-200" data-section="upload" style="display: none;">
-                <i class="fas fa-upload fa-fw text-xl sidebar-icon"></i>
-                <span class="text-sm">업로드</span>
-            </a>
-        </nav>
-        <div class="mt-auto w-full">
-             <a href="#" class="nav-item flex items-center space-x-3 p-3 rounded-lg hover:bg-purple-700/30 transition-colors duration-200" data-section="profile">
-                <i class="fas fa-user-circle fa-fw text-xl sidebar-icon"></i>
-                <span id="profileLinkText" class="text-sm">프로필</span>
-            </a>
-            <button id="logoutButton" class="hidden w-full flex items-center space-x-3 p-3 mt-2 rounded-lg text-sm text-red-400 hover:bg-red-700/30 transition-colors duration-200">
-                <i class="fas fa-sign-out-alt fa-fw text-xl sidebar-icon"></i>
-                <span class="text-sm">로그아웃</span>
-            </button>
-        </div>
-    </aside>
-
-    <div id="mobileSidebarOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden md:hidden"></div>
-    <aside id="mobileSidebar" class="fixed inset-y-0 left-0 w-64 glassmorphism p-4 space-y-8 flex flex-col items-start z-40 transform -translate-x-full transition-transform duration-300 ease-in-out md:hidden">
-        <div class="flex items-center justify-between w-full mb-6">
-            <div class="flex items-center space-x-3"> 
-                <svg class="h-10 w-10 neon-accent" viewBox="0 0 24 24" fill="currentColor"> <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/> </svg>
-                <h1 class="text-2xl font-bold">AION</h1> 
-            </div>
-            <button id="closeMobileSidebarButton" class="text-gray-400 hover:text-white">
-                <i class="fas fa-times text-2xl"></i>
-            </button>
-        </div>
-        <nav class="space-y-3 flex-grow w-full">
-            <a href="#" class="nav-item flex items-center space-x-3 p-3 rounded-lg hover:bg-purple-700/30 transition-colors duration-200 active-nav" data-section="home">
-                <i class="fas fa-home fa-fw text-lg sidebar-icon"></i>
-                <span class="text-sm">홈</span>
-            </a>
-            <a href="#" class="nav-item flex items-center space-x-3 p-3 rounded-lg hover:bg-purple-700/30 transition-colors duration-200" data-section="library">
-                <i class="fas fa-list-alt fa-fw text-lg sidebar-icon"></i> 
-                <span class="text-sm">플레이 리스트</span>
-            </a>
-             <div id="exportContentButtonContainerMobileSidebar" class="admin-only-block" style="display: none;"> 
-                 <button id="exportContentButtonMobileSidebar" class="w-full flex items-center space-x-3 p-3 rounded-lg text-sm text-gray-300 hover:bg-blue-700/30 transition-colors duration-200">
-                    <i class="fas fa-file-export fa-fw text-lg sidebar-icon"></i>
-                    <span class="text-sm">JSON 내보내기</span>
-                </button>
-            </div>
-            <a href="#" class="nav-item admin-only flex items-center space-x-3 p-3 rounded-lg hover:bg-purple-700/30 transition-colors duration-200" data-section="upload" style="display: none;">
-                <i class="fas fa-upload fa-fw text-lg sidebar-icon"></i>
-                <span class="text-sm">업로드</span>
-            </a>
-        </nav>
-        <div class="mt-auto w-full">
-             <a href="#" class="nav-item flex items-center space-x-3 p-3 rounded-lg hover:bg-purple-700/30 transition-colors duration-200" data-section="profile">
-                <i class="fas fa-user-circle fa-fw text-lg sidebar-icon"></i>
-                <span id="profileLinkTextMobile" class="text-sm">프로필</span>
-            </a>
-            <button id="logoutButtonMobile" class="hidden w-full flex items-center space-x-3 p-3 mt-2 rounded-lg text-sm text-red-400 hover:bg-red-700/30 transition-colors duration-200">
-                <i class="fas fa-sign-out-alt fa-fw text-xl sidebar-icon"></i>
-                <span class="text-sm">로그아웃</span>
-            </button>
-        </div>
-    </aside>
-
-    <main id="mainContentArea" class="flex-1 md:ml-64 h-screen flex flex-col">
-        <header class="p-4 glassmorphism sticky top-0 z-20 flex-shrink-0">
-            <div class="flex items-center justify-between">
-                <button id="mobileMenuButton" class="text-gray-300 hover:text-white md:hidden mr-3">
-                    <i class="fas fa-bars text-xl"></i>
-                </button>
-                <div class="flex-grow relative">
-                    </div> 
-                <div class="flex items-center space-x-2 sm:space-x-4">
-                    <button class="p-2 rounded-full hover:bg-purple-700/30">
-                        <i class="fas fa-bell text-lg sm:text-xl"></i>
-                    </button>
-                    <img id="userAvatar" src="https://placehold.co/40x40/1A0933/E0E0E0?text=U" alt="User Avatar" class="w-8 h-8 sm:w-10 sm:h-10 rounded-full cursor-pointer object-cover"> 
-                </div>
-            </div>
-        </header>
-
-        <div class="flex-grow p-4 sm:p-6 overflow-y-auto scrollable-content pb-6"> 
-            <section id="home" class="content-section active">
-                <div class="mb-8 sm:mb-10">
-                    <h3 class="text-xl sm:text-2xl font-medium mb-3 sm:mb-4 flex items-center"><i class="fas fa-chart-line mr-2 neon-accent"></i>AION 차트 <span class="text-xs sm:text-sm text-gray-400 ml-2">(조회수 TOP 10)</span></h3>
-                    <div id="aionChartContainer" class="grid grid-cols-2 gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 sm:gap-3">
-                        <p id="aionChartPlaceholder" class="text-gray-400 col-span-full text-sm">차트 데이터를 불러오는 중...</p>
-                    </div>
-                </div>
-                <div class="mb-8 sm:mb-10">
-                    <h3 class="text-xl sm:text-2xl font-medium mb-3 sm:mb-4 flex items-center"><i class="fas fa-star mr-2 neon-accent"></i>추천 음악</h3>
-                    <div id="recommendedMusicContainer" class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 sm:gap-3">
-                         <p id="recommendedMusicPlaceholder" class="text-gray-400 col-span-full text-sm">추천 음악을 불러오는 중...</p>
-                    </div>
-                </div>
-                <div class="mb-8 sm:mb-10">
-                    <h3 class="text-xl sm:text-2xl font-medium mb-3 sm:mb-4 flex items-center"><i class="fas fa-music mr-2 neon-accent"></i>새로운 AI 음악 & MV</h3>
-                    <div id="newUploadsContainer" class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 sm:gap-3">
-                        <p id="newUploadsPlaceholder" class="text-gray-400 col-span-full text-sm">새로운 콘텐츠를 불러오는 중...</p>
-                    </div>
-                </div>
-            </section>
-
-            <section id="library" class="content-section">
-                <h2 class="text-2xl sm:text-3xl font-semibold mb-4 sm:mb-6">플레이 리스트</h2> 
-                <div class="space-y-8">
-                    <div>
-                        <div class="flex justify-between items-center mb-3">
-                            <h3 class="text-lg sm:text-xl font-medium">내 플레이리스트</h3>
-                            <button id="createPlaylistButton" class="neon-accent-bg text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold hover:bg-purple-700 transition-colors">
-                                <i class="fas fa-plus mr-1"></i> 새 플레이리스트
-                            </button>
-                        </div>
-                        <div id="myPlaylistsContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <p id="myPlaylistsPlaceholder" class="text-gray-400 col-span-full text-sm">플레이리스트를 불러오는 중...</p>
-                        </div>
-                    </div>
-                    <div>
-                        <h3 class="text-lg sm:text-xl font-medium mb-3">좋아요 표시한 곡</h3>
-                        <div id="likedSongsContainer" class="space-y-2">
-                            <p id="likedSongsPlaceholder" class="text-gray-400 text-sm">좋아요 표시한 곡을 불러오는 중...</p>
-                        </div>
-                    </div>
-                    <div>
-                        <h3 class="text-lg sm:text-xl font-medium mb-3">구독한 AI 아티스트</h3>
-                        <div id="subscribedArtistsContainer" class="space-y-2">
-                             <p id="subscribedArtistsPlaceholder" class="text-gray-400 text-sm">구독 정보를 불러오는 중...</p>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <section id="upload" class="content-section admin-only-block" style="display: none;">
-                <h2 class="text-2xl sm:text-3xl font-semibold mb-4 sm:mb-6">AI 콘텐츠 업로드</h2>
-                <div class="glassmorphism p-6 sm:p-8 rounded-lg max-w-2xl mx-auto">
-                    <form id="uploadForm" class="space-y-6">
-                        <div>
-                            <label for="uploadContentType" class="block text-sm font-medium mb-1">콘텐츠 유형</label>
-                            <select id="uploadContentType" name="uploadContentType" class="w-full p-3 rounded-lg bg-black/30 border border-purple-700/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm">
-                                <option value="mv">AI 뮤직 비디오 (YouTube)</option>
-                                <option value="music" disabled>AI 음악 (직접 업로드 - 추후 지원)</option>
-                            </select>
-                        </div>
-                        <div id="youtubeLinkGroup">
-                            <label for="uploadYoutubeLink" class="block text-sm font-medium mb-1">유튜브 영상 URL</label>
-                            <input type="url" id="uploadYoutubeLink" name="uploadYoutubeLink" class="w-full p-3 rounded-lg bg-black/30 border border-purple-700/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm" placeholder="예: https://www.youtube.com/watch?v=VIDEO_ID" required>
-                            <img id="uploadThumbnailPreview" src="https://placehold.co/320x180/1A0933/4A2270?text=썸네일+미리보기" alt="썸네일 미리보기" class="mt-2 rounded-md w-full h-auto max-w-xs object-contain border border-purple-700/50">
-                        </div>
-                        <div>
-                            <label for="uploadTitle" class="block text-sm font-medium mb-1">제목</label>
-                            <input type="text" id="uploadTitle" name="uploadTitle" class="w-full p-3 rounded-lg bg-black/30 border border-purple-700/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm" placeholder="예: 새벽 감성 AI 딥하우스" required>
-                        </div>
-                        <div>
-                            <label for="uploadAiMusicArtist" class="block text-sm font-medium mb-1">AI MUSIC ARTIST</label>
-                            <input type="text" id="uploadAiMusicArtist" name="uploadAiMusicArtist" class="w-full p-3 rounded-lg bg-black/30 border border-purple-700/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm" placeholder="예: MyAIArtistName">
-                        </div>
-                        <div>
-                            <label for="uploadAiTool" class="block text-sm font-medium mb-1">사용된 AI 모델</label>
-                            <select id="uploadAiTool" name="uploadAiTool" class="w-full p-3 rounded-lg bg-black/30 border border-purple-700/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm" required>
-                                <option value="">AI 모델 선택</option>
-                                <option value="Suno AI">Suno AI</option> <option value="Udio">Udio</option> <option value="Amper Music">Amper Music</option> <option value="AIVA">AIVA</option> <option value="Mubert">Mubert</option> <option value="RunwayML">RunwayML</option> <option value="Kaiber AI">Kaiber AI</option> <option value="기타/직접입력">기타/직접입력</option>
-                            </select>
-                        </div>
-                        <div class="mt-2">
-                            <input type="checkbox" id="uploadIsInstrumental" name="uploadIsInstrumental" class="rounded text-purple-600 focus:ring-purple-500">
-                            <label for="uploadIsInstrumental" class="ml-2 text-sm">악기 연주만 있는 음악</label>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label for="uploadGenre" class="block text-sm font-medium mb-1">장르 선택</label>
-                                <select id="uploadGenre" name="uploadGenre" class="w-full p-3 rounded-lg bg-black/30 border border-purple-700/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm">
-                                    <option value="">장르 선택 안함</option> <option value="K-Pop">K-Pop</option> <option value="발라드">발라드</option> <option value="EDM">EDM</option> <option value="힙합">힙합</option> <option value="클래식">클래식</option> <option value="재즈">재즈</option> <option value="Lo-fi">Lo-fi</option> <option value="팝">팝</option> <option value="록">록</option> <option value="기타">기타</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label for="uploadMood" class="block text-sm font-medium mb-1">분위기 선택</label>
-                                <select id="uploadMood" name="uploadMood" class="w-full p-3 rounded-lg bg-black/30 border border-purple-700/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm">
-                                    <option value="">분위기 선택 안함</option> <option value="신남">신남</option> <option value="차분함">차분함</option> <option value="몽환적">몽환적</option> <option value="웅장함">웅장함</option> <option value="경쾌함">경쾌함</option> <option value="슬픔">슬픔</option> <option value="긴장감">긴장감</option> <option value="편안함">편안함</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div>
-                            <label for="uploadTags" class="block text-sm font-medium mb-1">태그 (쉼표로 구분)</label>
-                            <input type="text" id="uploadTags" name="uploadTags" class="w-full p-3 rounded-lg bg-black/30 border border-purple-700/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm" placeholder="예: #Chill, #Lo-fi, #AI음악">
-                        </div>
-                        <button type="submit" class="w-full px-6 py-3 neon-accent-bg text-white rounded-lg font-semibold hover:bg-purple-700 transition-colors">업로드</button>
-                    </form>
-                    </div>
-            </section>
-            
-            <section id="profile" class="content-section">
-                <h2 class="text-2xl sm:text-3xl font-semibold mb-4 sm:mb-6">내 프로필</h2>
-                 <div id="profileContent" class="glassmorphism p-6 sm:p-8 rounded-lg max-w-2xl mx-auto hidden">
-                    <div class="flex flex-col items-center space-y-4">
-                        <img id="profileUserAvatar" src="https://placehold.co/120x120/1A0933/E0E0E0?text=U" alt="User Avatar" class="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-purple-500 object-cover">
-                        <h3 id="profileUserName" class="text-xl sm:text-2xl font-semibold">사용자 이름</h3>
-                        <p id="profileUserEmail" class="text-gray-400 text-sm">user_email@example.com</p>
-                    </div>
-                    <div class="mt-8">
-                        <h4 class="text-base sm:text-lg font-medium mb-2">계정 정보</h4>
-                        <p class="text-gray-400 text-sm">구독 상태: <span class="neon-accent">프리미엄</span> (예시)</p>
-                        <p id="profileJoinDate" class="text-gray-400 text-sm">가입일: </p>
-                        <p id="profileAdminStatus" class="text-gray-400 text-sm admin-only-inline-block" style="display: none;">관리자 여부: </p>
-                    </div>
-                     <div class="mt-8 admin-only-block" style="display: none;">
-                        <h4 class="text-base sm:text-lg font-medium mb-2">내 AI 창작물 통계 (관리자용)</h4>
-                        <p id="profileTotalStreams" class="text-gray-400 text-sm">총 스트리밍: - 회</p>
-                        <p id="profileFollowers" class="text-gray-400 text-sm">팔로워: - 명</p>
-                    </div>
-                </div>
-                <p id="profileNotLoggedIn" class="text-gray-400 text-center">로그인이 필요합니다.</p>
-            </section>
-        </div>
-    </main>
-
-    <div id="youtubeModal" class="modal fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 hidden">
-        <div class="glassmorphism p-1 md:p-2 rounded-lg shadow-xl w-11/12 md:w-3/4 lg:w-2/3 relative">
-            <button id="closeYoutubeModalButton" class="absolute -top-3 -right-3 md:top-2 md:right-2 text-white bg-purple-600 hover:bg-purple-800 rounded-full w-8 h-8 flex items-center justify-center text-xl z-10"> × </button>
-            <div class="aspect-video"> <iframe id="youtubePlayer" width="100%" height="100%" src="" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
-            </div>
-        </div>
-    </div>
-
-    <div id="createPlaylistModal" class="modal fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden">
-        <div class="glassmorphism p-6 rounded-lg shadow-xl w-full max-w-md">
-            <h3 class="text-xl font-semibold mb-4">새 플레이리스트 만들기</h3>
-            <input type="text" id="newPlaylistName" placeholder="플레이리스트 이름" class="w-full p-3 rounded-lg bg-black/30 border border-purple-700/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none mb-4 text-sm">
-            <div class="flex justify-end space-x-3">
-                <button id="cancelCreatePlaylist" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg text-sm font-medium">취소</button>
-                <button id="confirmCreatePlaylist" class="px-4 py-2 neon-accent-bg hover:bg-purple-700 rounded-lg text-sm font-medium">만들기</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="addToPlaylistModal" class="modal fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden">
-        <div class="glassmorphism p-6 rounded-lg shadow-xl w-full max-w-md">
-            <h3 class="text-xl font-semibold mb-4">플레이리스트에 추가</h3>
-            <div id="playlistSelectionContainer" class="space-y-2 mb-4 max-h-60 overflow-y-auto scrollable-content pr-2">
-                <p id="playlistSelectionPlaceholder" class="text-gray-400 text-sm">플레이리스트가 없습니다. 먼저 플레이리스트를 만들어주세요.</p>
-            </div>
-            <input type="text" id="newPlaylistNameInAddModal" placeholder="또는 새 플레이리스트 이름 입력" class="w-full p-3 rounded-lg bg-black/30 border border-purple-700/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none mb-4 text-sm">
-            <div class="flex justify-end space-x-3">
-                <button id="cancelAddToPlaylist" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg text-sm font-medium">취소</button>
-                <button id="confirmAddToPlaylist" class="px-4 py-2 neon-accent-bg hover:bg-purple-700 rounded-lg text-sm font-medium">추가</button>
-            </div>
-        </div>
-    </div>
-    
-    <div id="playlistDetailModal" class="modal fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 hidden">
-        <div class="glassmorphism p-6 rounded-lg shadow-xl w-full max-w-2xl modal-content">
-            <div class="flex justify-between items-center mb-4">
-                <h3 id="playlistDetailName" class="text-2xl font-semibold">플레이리스트 이름</h3>
-                <button id="closePlaylistDetailModal" class="text-gray-400 hover:text-white text-2xl">×</button>
-            </div>
-            <div id="playlistDetailItemsContainer" class="space-y-3 max-h-[calc(80vh-150px)] overflow-y-auto scrollable-content pr-2">
-                <p id="playlistDetailPlaceholder" class="text-gray-400 text-sm">이 플레이리스트에 곡이 없습니다.</p>
-            </div>
-             <div class="mt-4 flex justify-end space-x-2">
-                <button id="deletePlaylistButton" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium">플레이리스트 삭제</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="editItemModal" class="modal fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 hidden">
-        <div class="glassmorphism p-8 rounded-lg shadow-xl w-full max-w-2xl modal-content overflow-y-auto">
-            <h3 class="text-xl font-semibold mb-6 text-center">콘텐츠 정보 수정</h3>
-            <form id="editItemForm" class="space-y-4">
-                <input type="hidden" id="editItemId">
-                <div>
-                    <label for="editYoutubeLink" class="block text-sm font-medium mb-1">유튜브 영상 URL</label>
-                    <input type="url" id="editYoutubeLink" name="editYoutubeLink" class="w-full p-3 rounded-lg bg-black/30 border border-purple-700/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm" required>
-                    <img id="editThumbnailPreview" src="https://placehold.co/320x180/1A0933/4A2270?text=썸네일+미리보기" alt="썸네일 미리보기" class="mt-2 rounded-md w-full h-auto max-w-xs object-contain border border-purple-700/50">
-                </div>
-                <div>
-                    <label for="editTitle" class="block text-sm font-medium mb-1">제목</label>
-                    <input type="text" id="editTitle" name="editTitle" class="w-full p-3 rounded-lg bg-black/30 border border-purple-700/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm" required>
-                </div>
-                <div>
-                    <label for="editAiMusicArtist" class="block text-sm font-medium mb-1">AI MUSIC ARTIST</label>
-                    <input type="text" id="editAiMusicArtist" name="editAiMusicArtist" class="w-full p-3 rounded-lg bg-black/30 border border-purple-700/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm">
-                </div>
-                <div>
-                    <label for="editAiTool" class="block text-sm font-medium mb-1">사용된 AI 모델</label>
-                    <select id="editAiTool" name="editAiTool" class="w-full p-3 rounded-lg bg-black/30 border border-purple-700/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm" required>
-                        <option value="">AI 모델 선택</option>
-                        <option value="Suno AI">Suno AI</option> <option value="Udio">Udio</option> <option value="Amper Music">Amper Music</option> <option value="AIVA">AIVA</option> <option value="Mubert">Mubert</option> <option value="RunwayML">RunwayML</option> <option value="Kaiber AI">Kaiber AI</option> <option value="기타/직접입력">기타/직접입력</option>
-                    </select>
-                </div>
-                <div class="mt-2">
-                    <input type="checkbox" id="editIsInstrumental" name="editIsInstrumental" class="rounded text-purple-600 focus:ring-purple-500">
-                    <label for="editIsInstrumental" class="ml-2 text-sm">악기 연주만 있는 음악</label>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label for="editGenre" class="block text-sm font-medium mb-1">장르 선택</label>
-                        <select id="editGenre" name="editGenre" class="w-full p-3 rounded-lg bg-black/30 border border-purple-700/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm">
-                            <option value="">장르 선택 안함</option> <option value="K-Pop">K-Pop</option> <option value="발라드">발라드</option> <option value="EDM">EDM</option> <option value="힙합">힙합</option> <option value="클래식">클래식</option> <option value="재즈">재즈</option> <option value="Lo-fi">Lo-fi</option> <option value="팝">팝</option> <option value="록">록</option> <option value="기타">기타</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="editMood" class="block text-sm font-medium mb-1">분위기 선택</label>
-                        <select id="editMood" name="editMood" class="w-full p-3 rounded-lg bg-black/30 border border-purple-700/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm">
-                            <option value="">분위기 선택 안함</option> <option value="신남">신남</option> <option value="차분함">차분함</option> <option value="몽환적">몽환적</option> <option value="웅장함">웅장함</option> <option value="경쾌함">경쾌함</option> <option value="슬픔">슬픔</option> <option value="긴장감">긴장감</option> <option value="편안함">편안함</option>
-                        </select>
-                    </div>
-                </div>
-                <div>
-                    <label for="editTags" class="block text-sm font-medium mb-1">태그 (쉼표로 구분)</label>
-                    <input type="text" id="editTags" name="editTags" class="w-full p-3 rounded-lg bg-black/30 border border-purple-700/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm">
-                </div>
-                <div class="flex justify-end space-x-3 pt-4">
-                    <button type="button" id="cancelEditItem" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg text-sm font-medium">취소</button>
-                    <button type="submit" class="px-4 py-2 neon-accent-bg hover:bg-purple-700 rounded-lg text-sm font-medium">변경사항 저장</button>
-                </div>
-            </form>
-        </div>
-    </div>
-    
-    <div id="toastMessage" class="toast-message"></div>
-
-    <script>
-        // --- Firebase 구성 ---
-        const firebaseConfig = {
-           apiKey: "AIzaSyCAfrCXrHfYWUrvZ-SKqocCXu5QNCbFRH8", 
-            authDomain: "aion-18c27.firebaseapp.com", 
-            projectId: "aion-18c27", 
-            storageBucket: "aion-18c27.appspot.com", 
-            messagingSenderId: "496946227122", 
-            appId: "AION" 
-        };
-
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore(); 
-        const functions = firebase.functions(); 
-        const auth = firebase.auth(); 
-
-        // --- 전역 변수 ---
+      // --- 전역 변수 ---
         let currentUser = null; 
         let isAdmin = false;    
         let allContentData = []; 
@@ -545,11 +67,13 @@
         let userPlaylists = []; 
         let userSubscribedArtistsSet = new Set(); 
         let contentListenerUnsubscribe = null; 
+        let loginProcessing = false;
 
         // --- UI 요소 가져오기 ---
         const loginFormContainer = document.getElementById('loginFormContainer');
         const loginForm = document.getElementById('loginForm');
         const loginErrorText = document.getElementById('loginError');
+        const loginSubmitButton = document.getElementById('loginSubmitButton');
         const logoutButton = document.getElementById('logoutButton');
         const logoutButtonMobile = document.getElementById('logoutButtonMobile');
         const userAvatar = document.getElementById('userAvatar');
@@ -874,11 +398,16 @@
             userSubscribedArtistsSet.clear();
             const uid = currentUser.uid;
             try {
+                const likedItemsCollectionRef = collection(db, 'users', uid, 'likedItems');
+                const playlistsCollectionRef = collection(db, 'users', uid, 'playlists');
+                const subscribedArtistsCollectionRef = collection(db, 'users', uid, 'subscribedArtists');
+
                 const [likedSnapshot, playlistsSnapshot, subsSnapshot] = await Promise.all([
-                    db.collection('users').doc(uid).collection('likedItems').get(),
-                    db.collection('users').doc(uid).collection('playlists').orderBy('createdAt', 'desc').get(),
-                    db.collection('users').doc(uid).collection('subscribedArtists').get()
+                    getDocs(likedItemsCollectionRef),
+                    getDocs(query(playlistsCollectionRef, orderBy('createdAt', 'desc'))),
+                    getDocs(subscribedArtistsCollectionRef)
                 ]);
+
                 likedSnapshot.forEach(doc => userLikedItemsMap.set(doc.id, true));
                 playlistsSnapshot.forEach(doc => userPlaylists.push({ id: doc.id, ...doc.data() }));
                 subsSnapshot.forEach(doc => userSubscribedArtistsSet.add(doc.id));
@@ -894,9 +423,8 @@
                 contentListenerUnsubscribe(); 
                 console.log("Previous content listener unsubscribed.");
             }
-            contentListenerUnsubscribe = db.collection('contentItems')
-              .orderBy('createdAt', 'desc') 
-              .onSnapshot((querySnapshot) => {
+            const contentItemsQuery = query(collection(db, 'contentItems'), orderBy('createdAt', 'desc'));
+            contentListenerUnsubscribe = onSnapshot(contentItemsQuery, (querySnapshot) => {
                 const itemsFromFirestore = [];
                 querySnapshot.forEach((doc) => {
                     itemsFromFirestore.push({ ...doc.data(), itemId: doc.data().itemId || doc.id, id: doc.id }); 
@@ -920,16 +448,16 @@
 
         async function toggleLikeItem(itemId) {
             if (!currentUser || !itemId) return;
-            const itemRef = db.collection('users').doc(currentUser.uid).collection('likedItems').doc(itemId);
+            const itemDocRef = doc(db, 'users', currentUser.uid, 'likedItems', itemId);
             const originalItem = allContentData.find(item => (item.itemId || item.id) === itemId);
             try {
                 if (userLikedItemsMap.has(itemId)) {
-                    await itemRef.delete();
+                    await deleteDoc(itemDocRef);
                     userLikedItemsMap.delete(itemId);
                     showToast('좋아요를 취소했습니다.');
                 } else {
-                    await itemRef.set({ 
-                        likedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    await setDoc(itemDocRef, { 
+                        likedAt: serverTimestamp(),
                         title: originalItem?.title || "Unknown Title", 
                         youtubeId: originalItem?.youtubeId || null,
                         aiMusicArtist: originalItem?.aiMusicArtist || null,
@@ -966,7 +494,8 @@
                 let itemData = allContentData.find(item => (item.itemId || item.id) === itemId);
                 if (!itemData) { 
                     try {
-                        const docSnap = await db.collection('users').doc(currentUser.uid).collection('likedItems').doc(itemId).get();
+                        const likedItemDocRef = doc(db, 'users', currentUser.uid, 'likedItems', itemId);
+                        const docSnap = await getDoc(likedItemDocRef); 
                         if (docSnap.exists()) { 
                             itemData = { id: docSnap.id, ...docSnap.data(), isFromLikedCollection: true }; 
                         }
@@ -974,7 +503,11 @@
                 }
                 if (itemData && itemData.youtubeId) likedItemDetails.push(itemData); 
             }
-            likedItemDetails.sort((a,b) => (b.likedAt && a.likedAt && b.likedAt.toMillis && a.likedAt.toMillis) ? b.likedAt.toMillis() - a.likedAt.toMillis() : 0);
+             likedItemDetails.sort((a,b) => {
+                const timeA = a.likedAt && a.likedAt.toMillis ? a.likedAt.toMillis() : 0;
+                const timeB = b.likedAt && b.likedAt.toMillis ? b.likedAt.toMillis() : 0;
+                return timeB - timeA;
+            });
 
             if (likedItemDetails.length > 0) {
                 if(likedSongsPlaceholder) likedSongsPlaceholder.classList.add('hidden');
@@ -1017,14 +550,14 @@
         async function toggleArtistSubscription(artistName) {
             if (!currentUser) { showToast('로그인이 필요합니다.'); return; }
             if (!artistName || artistName === 'N/A') { showToast('유효한 아티스트 이름이 아닙니다.'); return; }
-            const artistRef = db.collection('users').doc(currentUser.uid).collection('subscribedArtists').doc(artistName);
+            const artistDocRef = doc(db, 'users', currentUser.uid, 'subscribedArtists', artistName); 
             try {
                 if (userSubscribedArtistsSet.has(artistName)) {
-                    await artistRef.delete();
+                    await deleteDoc(artistDocRef); 
                     userSubscribedArtistsSet.delete(artistName);
                     showToast(`${artistName} 구독을 취소했습니다.`);
                 } else {
-                    await artistRef.set({ subscribedAt: firebase.firestore.FieldValue.serverTimestamp() });
+                    await setDoc(artistDocRef, { subscribedAt: serverTimestamp() }); 
                     userSubscribedArtistsSet.add(artistName);
                     showToast(`${artistName}을(를) 구독했습니다.`);
                 }
@@ -1074,8 +607,9 @@
                 const playlistName = newPlaylistNameInput.value.trim();
                 if (playlistName) {
                     try {
-                        const newPlaylistRef = await db.collection('users').doc(currentUser.uid).collection('playlists').add({
-                            name: playlistName, items: [], createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                        const playlistsCollectionRef = collection(db, 'users', currentUser.uid, 'playlists');
+                        const newPlaylistRef = await addDoc(playlistsCollectionRef, { 
+                            name: playlistName, items: [], createdAt: serverTimestamp()
                         });
                         userPlaylists.unshift({ id: newPlaylistRef.id, name: playlistName, items: [], createdAt: new Date() }); 
                         renderMyPlaylists();
@@ -1128,16 +662,17 @@
                 let targetPlaylistId = null; let targetPlaylistName = '';
                 try {
                     if (newPlaylistName) { 
-                        const newPlaylistRef = await db.collection('users').doc(currentUser.uid).collection('playlists').add({
-                            name: newPlaylistName, items: [currentItemToAddToPlaylist], createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                        const playlistsCollectionRef = collection(db, 'users', currentUser.uid, 'playlists');
+                        const newPlaylistRef = await addDoc(playlistsCollectionRef, { 
+                            name: newPlaylistName, items: [currentItemToAddToPlaylist], createdAt: serverTimestamp()
                         });
                         targetPlaylistId = newPlaylistRef.id; targetPlaylistName = newPlaylistName;
                         userPlaylists.unshift({ id: targetPlaylistId, name: targetPlaylistName, items: [currentItemToAddToPlaylist], createdAt: new Date() });
                         showToast(`'${targetPlaylistName}' 플레이리스트에 곡을 추가했습니다.`);
                     } else if (selectedRadio) { 
                         targetPlaylistId = selectedRadio.value;
-                        const playlistRef = db.collection('users').doc(currentUser.uid).collection('playlists').doc(targetPlaylistId);
-                        await playlistRef.update({ items: firebase.firestore.FieldValue.arrayUnion(currentItemToAddToPlaylist) });
+                        const playlistDocRef = doc(db, 'users', currentUser.uid, 'playlists', targetPlaylistId);
+                        await updateDoc(playlistDocRef, { items: arrayUnion(currentItemToAddToPlaylist) }); 
                         const playlist = userPlaylists.find(p => p.id === targetPlaylistId);
                         if (playlist) {
                             targetPlaylistName = playlist.name;
@@ -1227,7 +762,8 @@
                 if (!currentUser || !currentViewingPlaylistId) return;
                 if (confirm("이 플레이리스트를 정말 삭제하시겠습니까?")) {
                     try {
-                        await db.collection('users').doc(currentUser.uid).collection('playlists').doc(currentViewingPlaylistId).delete();
+                        const playlistDocRef = doc(db, 'users', currentUser.uid, 'playlists', currentViewingPlaylistId);
+                        await deleteDoc(playlistDocRef); 
                         userPlaylists = userPlaylists.filter(pl => pl.id !== currentViewingPlaylistId); 
                         renderMyPlaylists();
                         playlistDetailModal.classList.add('hidden');
@@ -1241,8 +777,8 @@
         async function removeSongFromPlaylist(playlistId, itemIdToRemove) {
             if (!currentUser) return;
             try {
-                const playlistRef = db.collection('users').doc(currentUser.uid).collection('playlists').doc(playlistId);
-                await playlistRef.update({ items: firebase.firestore.FieldValue.arrayRemove(itemIdToRemove) });
+                const playlistDocRef = doc(db, 'users', currentUser.uid, 'playlists', playlistId);
+                await updateDoc(playlistDocRef, { items: arrayRemove(itemIdToRemove) }); 
                 const playlist = userPlaylists.find(pl => pl.id === playlistId);
                 if (playlist) playlist.items = playlist.items.filter(id => id !== itemIdToRemove); 
                 openPlaylistDetailModal(playlistId); 
@@ -1289,35 +825,27 @@
         }
         
         // --- 인증 관련 함수 ---
-        auth.onAuthStateChanged(async (user) => {
+        onAuthStateChanged(authInstance, async (user) => { 
             console.log("[AUTH STATE CHANGED] User object:", user ? user.uid : "No user");
             if (user) {
-                // 1. 로그인 폼 숨김 (최우선)
                 if (loginFormContainer) {
                     loginFormContainer.classList.add('hidden');
                     console.log("[AUTH STATE CHANGED] Login form hidden.");
                 }
-                
                 currentUser = user;
                 document.body.classList.add('user-logged-in');
-
-                // 2. isAdmin 상태 확인 (비동기)
                 try {
-                    const idTokenResult = await user.getIdTokenResult(true); // 강제 갱신
+                    const idTokenResult = await currentUser.getIdTokenResult(true); 
                     isAdmin = idTokenResult.claims.admin === true;
                     console.log("[AUTH STATE CHANGED] isAdmin determined:", isAdmin, "Claims:", idTokenResult.claims);
                 } catch (error) {
                     console.error("[AUTH STATE CHANGED] Error getting ID token result:", error);
                     isAdmin = false;
                 }
-                
-                // 3. UI 업데이트 및 데이터 로드
                 updateUIAfterLogin(); 
                 await loadUserSpecificDataFromFirestore(); 
                 loadContentItemsFromFirestore(); 
-
             } else {
-                // 로그아웃 또는 비로그인 상태
                 currentUser = null;
                 isAdmin = false;
                 if (loginFormContainer) {
@@ -1326,10 +854,9 @@
                 }
                 document.body.classList.remove('user-logged-in');
                 document.body.classList.remove('admin-logged-in'); 
-
                 updateUIAfterLogout();
                 clearUserSpecificDataAndUI();
-                loadContentItemsFromFirestore(); // 콘텐츠는 계속 로드
+                loadContentItemsFromFirestore(); 
             }
         });
 
@@ -1368,66 +895,56 @@
             if (closeMobileSidebarButton) closeMobileSidebarButton.addEventListener('click', closeMobileSidebar);
             if (mobileSidebarOverlay) mobileSidebarOverlay.addEventListener('click', closeMobileSidebar);
 
-            // 로그인 폼 제출 이벤트 리스너 (한 번만 등록되도록 DOMContentLoaded 내부에 배치)
+            // 로그인 폼 제출 이벤트 리스너
             if (loginForm) {
                 loginForm.addEventListener('submit', async (e) => {
                     e.preventDefault();
+                    if (loginProcessing) { 
+                        console.log("Login already in progress, ignoring duplicate submit.");
+                        return;
+                    }
+                    loginProcessing = true;
+                    if(loginSubmitButton) loginSubmitButton.disabled = true; 
+
                     const email = loginForm.loginEmail.value;
                     const password = loginForm.loginPassword.value;
                     if (loginErrorText) loginErrorText.textContent = '';
                     try {
                         console.log("Attempting login with email:", email);
-                        await auth.signInWithEmailAndPassword(email, password);
+                        await signInWithEmailAndPassword(authInstance, email, password); 
                         console.log("Login attempt successful for:", email); 
-                        // onAuthStateChanged가 UI 업데이트 및 데이터 로딩을 처리합니다.
                     } catch (error) {
                         console.error("Login failed:", error);
                         if (loginErrorText) loginErrorText.textContent = "로그인 실패: " + error.message;
                         showToast("로그인 실패: " + error.message);
+                    } finally {
+                        loginProcessing = false; 
+                        if(loginSubmitButton) loginSubmitButton.disabled = false; 
                     }
                 });
             }
 
             // 로그아웃 버튼 이벤트 리스너
+            async function handleLogout() { 
+                try {
+                    await signOut(authInstance); 
+                    console.log("Logout successful.");
+                } catch (error) {
+                    console.error("Logout failed:", error);
+                    showToast("로그아웃 실패: " + error.message);
+                }
+            }
             if (logoutButton) logoutButton.addEventListener('click', handleLogout);
             if (logoutButtonMobile) logoutButtonMobile.addEventListener('click', handleLogout);
 
             // 페이지 로드 시 로그인 폼을 기본적으로 표시합니다.
-            // auth.onAuthStateChanged가 실행되면 로그인 상태에 따라 폼이 숨겨지거나 계속 표시됩니다.
             if(loginFormContainer) { 
-                 loginFormContainer.classList.remove('hidden'); // 초기에 로그인 폼을 보이도록 설정
+                 loginFormContainer.classList.remove('hidden'); 
                  console.log("DOMContentLoaded: Login form explicitly made visible initially.");
             }
         });
 
-        async function handleLogout() {
-            try {
-                await auth.signOut();
-                console.log("Logout successful.");
-            } catch (error) {
-                console.error("Logout failed:", error);
-                showToast("로그아웃 실패: " + error.message);
-            }
-        }
-
-        /*
-        --- Firestore 보안 규칙 예시 (Firebase Console에 설정 필요) ---
-        rules_version = '2';
-        service cloud.firestore {
-          match /databases/{database}/documents {
-            match /contentItems/{itemId} {
-              allow read: if true;
-              allow create, update, delete: if request.auth != null && request.auth.token.admin == true;
-            }
-            match /users/{userId}/{collection}/{docId} {
-              allow read, write: if request.auth != null && request.auth.uid == userId;
-            }
-          }
-        }
-        --- Firebase Custom Claims 설정 알림 ---
-        // 관리자 기능을 사용하려면 Firebase Admin SDK를 사용하여
-        // 관리자 계정에 { admin: true } Custom Claim을 설정해야 합니다.
-        */
+        /* Firestore 보안 규칙 및 Custom Claims 설정 알림은 이전과 동일 */
     </script>
 </body>
 </html>
