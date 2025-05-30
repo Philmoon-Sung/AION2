@@ -524,7 +524,7 @@
     <script>
         // --- Firebase 구성 ---
         const firebaseConfig = {
-            apiKey: "AIzaSyCAfrCXrHfYWUrvZ-SKqocCXu5QNCbFRH8", 
+           apiKey: "AIzaSyCAfrCXrHfYWUrvZ-SKqocCXu5QNCbFRH8", 
             authDomain: "aion-18c27.firebaseapp.com", 
             projectId: "aion-18c27", 
             storageBucket: "aion-18c27.appspot.com", 
@@ -1287,9 +1287,55 @@
             document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
             showToast('콘텐츠가 aion_content_firestore.json 파일로 내보내졌습니다.');
         }
+        
+        // --- 인증 관련 함수 ---
+        auth.onAuthStateChanged(async (user) => {
+            console.log("[AUTH STATE CHANGED] User object:", user ? user.uid : "No user");
+            if (user) {
+                // 1. 로그인 폼 숨김 (최우선)
+                if (loginFormContainer) {
+                    loginFormContainer.classList.add('hidden');
+                    console.log("[AUTH STATE CHANGED] Login form hidden.");
+                }
+                
+                currentUser = user;
+                document.body.classList.add('user-logged-in');
+
+                // 2. isAdmin 상태 확인 (비동기)
+                try {
+                    const idTokenResult = await user.getIdTokenResult(true); // 강제 갱신
+                    isAdmin = idTokenResult.claims.admin === true;
+                    console.log("[AUTH STATE CHANGED] isAdmin determined:", isAdmin, "Claims:", idTokenResult.claims);
+                } catch (error) {
+                    console.error("[AUTH STATE CHANGED] Error getting ID token result:", error);
+                    isAdmin = false;
+                }
+                
+                // 3. UI 업데이트 및 데이터 로드
+                updateUIAfterLogin(); 
+                await loadUserSpecificDataFromFirestore(); 
+                loadContentItemsFromFirestore(); 
+
+            } else {
+                // 로그아웃 또는 비로그인 상태
+                currentUser = null;
+                isAdmin = false;
+                if (loginFormContainer) {
+                    loginFormContainer.classList.remove('hidden');
+                    console.log("[AUTH STATE CHANGED] User signed out or not logged in. Login form shown.");
+                }
+                document.body.classList.remove('user-logged-in');
+                document.body.classList.remove('admin-logged-in'); 
+
+                updateUIAfterLogout();
+                clearUserSpecificDataAndUI();
+                loadContentItemsFromFirestore(); // 콘텐츠는 계속 로드
+            }
+        });
 
         // --- 페이지 초기화 ---
         document.addEventListener('DOMContentLoaded', () => {
+            console.log("DOMContentLoaded event fired.");
             // 초기 홈 섹션 활성화
             const homeNavItemDesktop = desktopSidebar.querySelector('.nav-item[data-section="home"]');
             const homeNavItemMobile = mobileSidebar.querySelector('.nav-item[data-section="home"]');
@@ -1301,10 +1347,9 @@
                 homeNavItemMobile.classList.add(activeNavClass);
                 homeNavItemMobile.classList.remove(inactiveNavClass);
             }
-            if(document.getElementById('home')) { // home 요소가 있는지 확인 후 active 클래스 추가
+            if(document.getElementById('home')) {
                 document.getElementById('home').classList.add('active');
             }
-
 
             // 네비게이션 아이템 이벤트 리스너 설정
             document.querySelectorAll('#desktopSidebar .nav-item, #mobileSidebar .nav-item').forEach(item => {
@@ -1323,74 +1368,37 @@
             if (closeMobileSidebarButton) closeMobileSidebarButton.addEventListener('click', closeMobileSidebar);
             if (mobileSidebarOverlay) mobileSidebarOverlay.addEventListener('click', closeMobileSidebar);
 
+            // 로그인 폼 제출 이벤트 리스너 (한 번만 등록되도록 DOMContentLoaded 내부에 배치)
+            if (loginForm) {
+                loginForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const email = loginForm.loginEmail.value;
+                    const password = loginForm.loginPassword.value;
+                    if (loginErrorText) loginErrorText.textContent = '';
+                    try {
+                        console.log("Attempting login with email:", email);
+                        await auth.signInWithEmailAndPassword(email, password);
+                        console.log("Login attempt successful for:", email); 
+                        // onAuthStateChanged가 UI 업데이트 및 데이터 로딩을 처리합니다.
+                    } catch (error) {
+                        console.error("Login failed:", error);
+                        if (loginErrorText) loginErrorText.textContent = "로그인 실패: " + error.message;
+                        showToast("로그인 실패: " + error.message);
+                    }
+                });
+            }
+
+            // 로그아웃 버튼 이벤트 리스너
+            if (logoutButton) logoutButton.addEventListener('click', handleLogout);
+            if (logoutButtonMobile) logoutButtonMobile.addEventListener('click', handleLogout);
 
             // 페이지 로드 시 로그인 폼을 기본적으로 표시합니다.
             // auth.onAuthStateChanged가 실행되면 로그인 상태에 따라 폼이 숨겨지거나 계속 표시됩니다.
             if(loginFormContainer) { 
                  loginFormContainer.classList.remove('hidden'); // 초기에 로그인 폼을 보이도록 설정
-                 console.log("DOMContentLoaded: Login form made visible initially.");
+                 console.log("DOMContentLoaded: Login form explicitly made visible initially.");
             }
         });
-
-        // --- 인증 관련 함수 ---
-        auth.onAuthStateChanged(async (user) => {
-            console.log("Auth state changed. User:", user ? user.uid : "No user");
-            if (user) {
-                currentUser = user;
-                // 로그인 성공 시 가장 먼저 로그인 폼 숨김
-                if (loginFormContainer) {
-                    loginFormContainer.classList.add('hidden');
-                    console.log("User logged in. Login form hidden.");
-                }
-                document.body.classList.add('user-logged-in');
-
-                try {
-                    const idTokenResult = await user.getIdTokenResult(true); 
-                    isAdmin = idTokenResult.claims.admin === true;
-                    console.log("isAdmin:", isAdmin, "Claims:", idTokenResult.claims);
-                } catch (error) {
-                    console.error("Error getting ID token result:", error);
-                    isAdmin = false;
-                }
-                
-                updateUIAfterLogin();
-                await loadUserSpecificDataFromFirestore(); 
-                loadContentItemsFromFirestore(); 
-
-            } else {
-                currentUser = null;
-                isAdmin = false;
-                // 로그아웃 또는 비로그인 시 로그인 폼 표시
-                if (loginFormContainer) {
-                    loginFormContainer.classList.remove('hidden');
-                    console.log("User signed out or not logged in. Login form shown.");
-                }
-                document.body.classList.remove('user-logged-in');
-                document.body.classList.remove('admin-logged-in'); 
-
-                updateUIAfterLogout();
-                clearUserSpecificDataAndUI();
-                loadContentItemsFromFirestore(); 
-            }
-        });
-
-        if (loginForm) {
-            loginForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const email = loginForm.loginEmail.value;
-                const password = loginForm.loginPassword.value;
-                if (loginErrorText) loginErrorText.textContent = '';
-                try {
-                    console.log("Attempting login with email:", email);
-                    await auth.signInWithEmailAndPassword(email, password);
-                    console.log("Login attempt successful for:", email); 
-                } catch (error) {
-                    console.error("Login failed:", error);
-                    if (loginErrorText) loginErrorText.textContent = "로그인 실패: " + error.message;
-                    showToast("로그인 실패: " + error.message);
-                }
-            });
-        }
 
         async function handleLogout() {
             try {
@@ -1401,9 +1409,6 @@
                 showToast("로그아웃 실패: " + error.message);
             }
         }
-        if (logoutButton) logoutButton.addEventListener('click', handleLogout);
-        if (logoutButtonMobile) logoutButtonMobile.addEventListener('click', handleLogout);
-
 
         /*
         --- Firestore 보안 규칙 예시 (Firebase Console에 설정 필요) ---
