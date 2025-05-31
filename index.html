@@ -18,24 +18,28 @@
 
         // --- Global Firebase & App Variables ---
         let db, auth, functions;
-        let userId = aion3-cf447;
-        let isAdminMode = true;
+        let userId = null;
+        let isAdminMode = false;
         let isAuthReady = false;
 
-        // IMPORTANT: Replace with your actual Admin User ID from Firebase Authentication
-        const ADMIN_UID = "aion3-cf447"; // 예: "Abc123xyz789..."
+        // ===============================================================================================
+        // === 중요: 관리자로 사용할 실제 Firebase 사용자의 UID로 이 값을 변경하세요. ===
+        // ===============================================================================================
+        const ADMIN_UID = "682WUG1HLca4zsq5hmgFGcP4pAM2"; // 예: "Abc123xyz789..."
+        // ===============================================================================================
 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'aion-default-app'; // Default app ID if __app_id is not defined
 
         // Default Firebase config (placeholders, will be overridden by __firebase_config if available)
         let firebaseConfig = {
-                apiKey: "AIzaSyCoasecN53zJLVUi8CIUR5BavaR1YzuRLs",
-                authDomain: "aion3-cf447.firebaseapp.com",
-                projectId: "aion3-cf447",
-                storageBucket: "aion3-cf447.firebasestorage.app",
-                messagingSenderId: "243042716213",
-                appId: "1:243042716213:web:d46aff346a616008a97f7c",
-                measurementId: "G-PSTTRDDD7B"
+            apiKey: "AIzaSyCAfrCXrHfYWUrvZ-SKqocCXu5QNCbFRH8",
+            authDomain: "aion-18c27.firebaseapp.com",
+            databaseURL: "https://aion-18c27-default-rtdb.firebaseio.com",
+            projectId: "aion-18c27",
+            storageBucket: "aion-18c27.firebasestorage.app",
+            messagingSenderId: "496946227122",
+            appId: "1:496946227122:web:3c7efdd7d014743f3126ab",
+            measurementId: "G-K2F99M91CM
         };
 
         if (typeof __firebase_config !== 'undefined') {
@@ -49,7 +53,7 @@
             }
         } else {
             console.warn("Global __firebase_config not found. Using default placeholders. Replace them with your actual Firebase config.");
-            showToast("Firebase 설정이 로드되지 않았습니다. 일부 기능이 작동하지 않을 수 있습니다.", true);
+            // showToast("Firebase 설정이 로드되지 않았습니다. 일부 기능이 작동하지 않을 수 있습니다.", true); // 주석 처리하여 초기 로드 시 불필요한 알림 방지
         }
 
         // Initialize Firebase App
@@ -86,7 +90,7 @@
             if (user) {
                 userId = user.uid;
                 console.log("User authenticated with UID:", userId);
-                isAdminMode = (userId === ADMIN_UID);
+                isAdminMode = (userId === ADMIN_UID); // 관리자 모드 설정
                 console.log("Admin mode:", isAdminMode);
                 document.getElementById('profileUserName').textContent = isAdminMode ? `관리자 (${userId.substring(0,6)}...)` : `사용자 (${userId.substring(0,6)}...)`;
                 document.getElementById('profileUserId').textContent = `User ID: ${userId}`;
@@ -117,10 +121,12 @@
             } catch (error) {
                 console.error("Error during sign-in:", error);
                 showToast("로그인 중 오류 발생: " + error.message, true);
-                userId = `anonymous-${crypto.randomUUID()}`; // Fallback guest ID
-                isAdminMode = false;
+                // Fallback: if anonymous sign-in also fails, create a temporary guest ID client-side
+                // This won't persist across sessions or allow Firestore writes if rules are strict
+                userId = `guest-${Date.now()}-${Math.random().toString(36).substring(2,7)}`;
+                isAdminMode = false; // Guests cannot be admins
                 isAuthReady = true;
-                initializeAppLogic();
+                initializeAppLogic(); // Still initialize logic for guest view
             }
         }
 
@@ -199,7 +205,7 @@
                 renderPageContent();
             });
 
-            if (userId) { // Only set up user-specific listeners if logged in
+            if (userId && !userId.startsWith('guest-')) { // Only set up user-specific listeners if logged in (not a guest)
                 // 2. User Playlists Listener
                 const playlistsQuery = query(collection(db, getUserPlaylistsCollectionPath(userId)), orderBy('createdAt', 'desc'));
                 unsubscribePlaylists = onSnapshot(playlistsQuery, (querySnapshot) => {
@@ -259,7 +265,7 @@
                     renderSubscribedArtists();
                 });
             } else {
-                // Clear user-specific data if logged out
+                // Clear user-specific data if logged out or guest
                 userPlaylists = [];
                 userLikedItemIds.clear();
                 userSubscribedArtists.clear();
@@ -404,14 +410,21 @@
         function getYouTubeId(url) {
             if (!url) return '';
             let videoId = '';
-            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+            const regExp = /^.*(http:\/\/www.youtube.com\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
             const match = url.match(regExp);
             if (match && match[2].length === 11) {
                 videoId = match[2];
             } else {
-                const shortMatch = url.match(/youtu.be\/([^#\&\?]{11})/);
+                // Check for youtu.be short URLs
+                const shortMatch = url.match(/youtu\.be\/([^#\&\?]{11})/);
                 if (shortMatch && shortMatch[1]) {
                     videoId = shortMatch[1];
+                } else {
+                     // Check for googleusercontent.com URLs (used in previous code)
+                    constusercontentMatch = url.match(/googleusercontent\.com\/youtube\.com\/\d+\/([^#\&\?]{11})/);
+                    if (usercontentMatch && usercontentMatch[1]) {
+                        videoId = usercontentMatch[1];
+                    }
                 }
             }
             return videoId;
@@ -471,7 +484,7 @@
 
             let actionButtonsHTML = `<div class="item-action-icon-wrapper">`;
             
-            if (userId) { // Only show these if user is logged in
+            if (userId && !userId.startsWith('guest-')) { // Only show these if user is logged in and not a guest
                 actionButtonsHTML += `<i class="fas fa-list-ul item-action-icon add-to-playlist-icon" title="플레이리스트에 추가"></i>`;
                 const isLiked = userLikedItemIds.has(itemData.itemId);
                 const likeIconClass = isLiked ? 'fas fa-heart text-red-500' : 'far fa-heart';
@@ -493,7 +506,7 @@
             const artistDisplay = itemData.aiMusicArtist || itemData.aiTool || 'N/A'; 
             
             let subscribeIconHTML = '';
-            if (userId && artistDisplay !== 'N/A') { // Only show if user is logged in and artist is valid
+            if (userId && !userId.startsWith('guest-') && artistDisplay !== 'N/A') { // Only show if user is logged in, not guest, and artist is valid
                 const isSubscribed = userSubscribedArtists.has(artistDisplay);
                 const subscribeIconClass = isSubscribed ? 'fas fa-heart text-red-500' : 'far fa-heart';
                 const subscribeTitle = isSubscribed ? `${artistDisplay} 구독 취소` : `${artistDisplay} 구독`;
@@ -540,7 +553,16 @@
             renderNewUploadsSection();
             renderAionChart();
             renderRecommendedMusicSection();
-            // User-specific sections are rendered by their own listeners
+            // User-specific sections are rendered by their own listeners if user is logged in
+             if (userId && !userId.startsWith('guest-')) {
+                renderMyPlaylists();
+                renderLikedSongs();
+                renderSubscribedArtists();
+            } else { // Clear user specific sections if not logged in or guest
+                if(myPlaylistsContainer && myPlaylistsPlaceholder) { clearContainer(myPlaylistsContainer, myPlaylistsPlaceholder); myPlaylistsPlaceholder.classList.remove('hidden'); myPlaylistsPlaceholder.textContent = "로그인이 필요합니다.";}
+                if(likedSongsContainer && likedSongsPlaceholder) { clearContainer(likedSongsContainer, likedSongsPlaceholder); likedSongsPlaceholder.classList.remove('hidden'); likedSongsPlaceholder.textContent = "로그인이 필요합니다.";}
+                if(subscribedArtistsContainer && subscribedArtistsPlaceholder) { clearContainer(subscribedArtistsContainer, subscribedArtistsPlaceholder); subscribedArtistsPlaceholder.classList.remove('hidden'); subscribedArtistsPlaceholder.textContent = "로그인이 필요합니다.";}
+            }
         }
         
         function renderNewUploadsSection() {
@@ -595,7 +617,7 @@
         // --- Upload Section Logic ---
         async function handleUploadFormSubmit(event) {
             event.preventDefault();
-            if (!isAdminMode || !userId) {
+            if (!isAdminMode || !userId || userId.startsWith('guest-')) { // Guests cannot upload
                 showToast('관리자만 업로드할 수 있습니다.', true);
                 return;
             }
@@ -610,7 +632,7 @@
             const tags = document.getElementById('uploadTags').value;
             const youtubeId = getYouTubeId(youtubeUrl);
 
-            if (!youtubeId) { showToast('유효한 유튜브 URL을 입력해주세요.', true); return; }
+            if (!youtubeId) { showToast('유효한 유튜브 URL을 입력해주세요. (예: https://www.youtube.com/watch?v=VIDEO_ID 또는 https://youtu.be/VIDEO_ID)', true); return; }
             if (!title || !aiTool) { showToast('제목과 사용된 AI 모델을 입력/선택해주세요.', true); return; }
 
             const newItemData = {
@@ -685,19 +707,19 @@
                 if (itemIdToRecommend) await toggleRecommendation(itemIdToRecommend);
             }
 
-            if (userId && targetAddToPlaylistButton) { // User must be logged in
+            if (userId && !userId.startsWith('guest-') && targetAddToPlaylistButton) { // User must be logged in and not guest
                 event.stopPropagation();
                 currentItemToAddToPlaylist = targetAddToPlaylistButton.closest('.youtube-playable')?.dataset.itemId;
                 if (currentItemToAddToPlaylist) openAddToPlaylistModal();
             }
 
-            if (userId && targetSubscribeButton) { // User must be logged in
+            if (userId && !userId.startsWith('guest-') && targetSubscribeButton) { // User must be logged in and not guest
                 event.stopPropagation();
                 const artistName = targetSubscribeButton.dataset.artistName;
                 if (artistName && artistName !== 'N/A') await toggleArtistSubscription(artistName);
             }
             
-            if (userId && targetLikeButton) { // User must be logged in
+            if (userId && !userId.startsWith('guest-') && targetLikeButton) { // User must be logged in and not guest
                 event.stopPropagation();
                 const itemIdToLike = targetLikeButton.closest('.youtube-playable')?.dataset.itemId;
                 if(itemIdToLike) await toggleLikeItem(itemIdToLike);
@@ -706,7 +728,7 @@
         
         function openYoutubeModal(youtubeId, itemId) {
             if (youtubePlayer && youtubeModal) {
-                youtubePlayer.src = `https://www.youtube.com/embed/${youtubeId}?autoplay=1&rel=0`;
+                youtubePlayer.src = `https://www.youtube.com/embed/${youtubeId}?autoplay=1&rel=0`; // Standard embed URL
                 youtubeModal.classList.remove('hidden');
                 youtubeModal.classList.add('flex');
                 incrementViewCount(itemId); // Increment view count
@@ -742,6 +764,9 @@
             }
             currentEditingItemId = itemId;
             document.getElementById('editItemId').value = itemId;
+            // For YouTube links, it's better to store the video ID and reconstruct standard URLs if needed.
+            // Or, if storing full URLs, ensure they are standard ones.
+            // Assuming itemToEdit.youtubeId stores only the ID.
             document.getElementById('editYoutubeLink').value = `https://www.youtube.com/watch?v=${itemToEdit.youtubeId}`;
             updateEditThumbnailPreviewFromUrlInput(); // Update thumbnail
             document.getElementById('editTitle').value = itemToEdit.title;
@@ -769,7 +794,7 @@
 
             const newYoutubeUrl = document.getElementById('editYoutubeLink').value;
             const newYoutubeId = getYouTubeId(newYoutubeUrl);
-            if (!newYoutubeId) { showToast('유효한 유튜브 URL을 입력해주세요.', true); return; }
+            if (!newYoutubeId) { showToast('유효한 유튜브 URL을 입력해주세요. (예: https://www.youtube.com/watch?v=VIDEO_ID)', true); return; }
             
             const updatedFields = {
                 youtubeId: newYoutubeId,
@@ -797,45 +822,16 @@
         async function deleteContentItem(itemIdToDelete) {
             if (!isAdminMode) return;
             try {
-                // 1. Delete the main content item
-                await deleteDoc(doc(db, getContentItemsCollectionPath(), itemIdToDelete));
+                const itemRef = doc(db, getContentItemsCollectionPath(), itemIdToDelete);
+                await deleteDoc(itemRef);
                 
-                // 2. Remove this item from all users' playlists and liked items (more complex, consider Cloud Function for atomicity at scale)
-                // For now, this will only affect the current user's data if they happen to have it.
-                // A more robust solution would be a Cloud Function that queries across all users.
-
-                // Remove from current user's playlists (if applicable, for demo)
-                if(userId) {
-                    const updatedPlaylists = [];
-                    let changed = false;
-                    for (const pl of userPlaylists) {
-                        const newItems = pl.items.filter(id => id !== itemIdToDelete);
-                        if (newItems.length !== pl.items.length) {
-                            changed = true;
-                            if (newItems.length > 0) { // Only keep playlist if it still has items or update it
-                                const playlistRef = doc(db, getUserPlaylistsCollectionPath(userId), pl.id);
-                                await updateDoc(playlistRef, { items: newItems });
-                                updatedPlaylists.push({...pl, items: newItems});
-                            } else { // Delete playlist if empty
-                                const playlistRef = doc(db, getUserPlaylistsCollectionPath(userId), pl.id);
-                                await deleteDoc(playlistRef);
-                            }
-                        } else {
-                            updatedPlaylists.push(pl);
-                        }
-                    }
-                    if(changed) userPlaylists = updatedPlaylists; // Update local state
-                }
-
-
-                // Remove from current user's liked items
-                if (userId && userLikedItemIds.has(itemIdToDelete)) {
-                    const likeRef = doc(db, getUserLikedItemsCollectionPath(userId), itemIdToDelete);
-                    await deleteDoc(likeRef); // This will trigger the onSnapshot for likedItems
-                }
+                // Note: Removing the item from all users' playlists/likes globally is complex
+                // and typically handled by Cloud Functions for atomicity and permissions.
+                // The current onSnapshot listeners for the logged-in user will handle updating their view.
+                // For a full cleanup across all users, a backend process is better.
 
                 showToast('콘텐츠가 삭제되었습니다.');
-                // UI update will be handled by onSnapshot listeners
+                // UI update will be handled by onSnapshot listeners for allContentData
             } catch (error) {
                 console.error("Error deleting content item: ", error);
                 showToast('콘텐츠 삭제 중 오류 발생: ' + error.message, true);
@@ -885,7 +881,7 @@
         let currentViewingPlaylistId = null;
 
         function openCreatePlaylistModal() {
-            if (!userId) { showToast("로그인이 필요합니다.", true); return; }
+            if (!userId || userId.startsWith('guest-')) { showToast("로그인이 필요합니다.", true); return; }
             if (createPlaylistModal) createPlaylistModal.classList.remove('hidden');
             if (newPlaylistNameInput) newPlaylistNameInput.value = '';
         }
@@ -893,7 +889,7 @@
             if (createPlaylistModal) createPlaylistModal.classList.add('hidden');
         }
         async function handleConfirmCreatePlaylist() {
-            if (!userId) { showToast("로그인이 필요합니다.", true); return; }
+            if (!userId || userId.startsWith('guest-')) { showToast("로그인이 필요합니다.", true); return; }
             const playlistName = newPlaylistNameInput.value.trim();
             if (playlistName) {
                 try {
@@ -915,7 +911,7 @@
         }
 
         function openAddToPlaylistModal() {
-            if (!userId) { showToast("로그인이 필요합니다.", true); return; }
+            if (!userId || userId.startsWith('guest-')) { showToast("로그인이 필요합니다.", true); return; }
             if (!addToPlaylistModal || !playlistSelectionContainer || !playlistSelectionPlaceholder) return;
             
             playlistSelectionContainer.innerHTML = ''; 
@@ -951,7 +947,7 @@
             currentItemToAddToPlaylist = null;
         }
         async function handleConfirmAddToPlaylist() {
-            if (!userId || !currentItemToAddToPlaylist) { return; }
+            if (!userId || userId.startsWith('guest-') || !currentItemToAddToPlaylist) { return; }
 
             const selectedRadio = playlistSelectionContainer.querySelector('input[name="playlistSelection"]:checked');
             const newPlaylistName = newPlaylistNameInAddModalInput.value.trim();
@@ -991,6 +987,12 @@
         function renderMyPlaylists() {
             if (!myPlaylistsContainer || !myPlaylistsPlaceholder) return;
             clearContainer(myPlaylistsContainer, myPlaylistsPlaceholder);
+
+            if (!userId || userId.startsWith('guest-')) {
+                myPlaylistsPlaceholder.classList.remove('hidden');
+                myPlaylistsPlaceholder.textContent = "플레이리스트를 보려면 로그인해주세요.";
+                return;
+            }
 
             if (userPlaylists.length > 0) {
                 myPlaylistsPlaceholder.classList.add('hidden');
@@ -1081,7 +1083,7 @@
             currentViewingPlaylistId = null;
         }
         async function handleDeletePlaylist() {
-            if (!userId || !currentViewingPlaylistId) return;
+            if (!userId || userId.startsWith('guest-') || !currentViewingPlaylistId) return;
             const playlist = userPlaylists.find(p => p.id === currentViewingPlaylistId);
             if (playlist && confirm(`'${playlist.name}' 플레이리스트를 정말 삭제하시겠습니까?`)) {
                 try {
@@ -1096,7 +1098,7 @@
             }
         }
         async function removeSongFromPlaylist(playlistId, itemIdToRemove) {
-            if (!userId) return;
+            if (!userId || userId.startsWith('guest-')) return;
             const playlist = userPlaylists.find(pl => pl.id === playlistId);
             if (playlist) {
                 const updatedItems = playlist.items.filter(id => id !== itemIdToRemove);
@@ -1117,7 +1119,7 @@
         const likedSongsPlaceholder = document.getElementById('likedSongsPlaceholder'); 
 
         async function toggleLikeItem(itemId) {
-            if (!userId || !itemId) return;
+            if (!userId || userId.startsWith('guest-') || !itemId) return;
             const likeRef = doc(db, getUserLikedItemsCollectionPath(userId), itemId);
             try {
                 if (userLikedItemIds.has(itemId)) { // Already liked, so unlike
@@ -1137,6 +1139,12 @@
             if (!likedSongsContainer || !likedSongsPlaceholder) return;
             clearContainer(likedSongsContainer, likedSongsPlaceholder);
             
+            if (!userId || userId.startsWith('guest-')) {
+                likedSongsPlaceholder.classList.remove('hidden');
+                likedSongsPlaceholder.textContent = "좋아요 표시한 곡을 보려면 로그인해주세요.";
+                return;
+            }
+
             if (userLikedItemIds.size > 0) {
                 likedSongsPlaceholder.classList.add('hidden');
                 userLikedItemIds.forEach(likedId => {
@@ -1182,8 +1190,8 @@
         const subscribedArtistsPlaceholder = document.getElementById('subscribedArtistsPlaceholder');
 
         async function toggleArtistSubscription(artistName) {
-            if (!userId || !artistName || artistName === 'N/A') { 
-                showToast('유효한 아티스트 이름이 아닙니다.', true); return;
+            if (!userId || userId.startsWith('guest-') || !artistName || artistName === 'N/A') { 
+                showToast('유효한 아티스트 이름이 아니거나 로그인이 필요합니다.', true); return;
             }
             const subRef = doc(db, getUserSubscribedArtistsCollectionPath(userId), artistName); // Use artistName as doc ID
             try {
@@ -1202,6 +1210,12 @@
         function renderSubscribedArtists() {
             if (!subscribedArtistsContainer || !subscribedArtistsPlaceholder) return;
             clearContainer(subscribedArtistsContainer, subscribedArtistsPlaceholder);
+
+             if (!userId || userId.startsWith('guest-')) {
+                subscribedArtistsPlaceholder.classList.remove('hidden');
+                subscribedArtistsPlaceholder.textContent = "구독한 아티스트를 보려면 로그인해주세요.";
+                return;
+            }
 
             if (userSubscribedArtists.size > 0) {
                 subscribedArtistsPlaceholder.classList.add('hidden');
@@ -1251,14 +1265,10 @@
         }
 
         // --- Initial Load Trigger ---
-        // Authentication listener (onAuthStateChanged) will call initializeAppLogic once auth state is known.
-        // If __initial_auth_token is not present, it will try anonymous sign-in.
         if (!auth.currentUser && (typeof __initial_auth_token === 'undefined' || !__initial_auth_token)) {
-            attemptSignIn(); // Manually trigger sign-in if no user and no token at initial script parse
+            attemptSignIn();
         }
 
-        // Expose some functions to window for debugging if needed (optional)
-        // window.aionApp = { toggleAdminModeForTesting: () => { isAdminMode = !isAdminMode; setupAdminUI(); } };
 
     </script>
 
