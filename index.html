@@ -18,25 +18,27 @@
 
         // --- Global Firebase & App Variables ---
         let db, auth, functions;
-        let userId = null;
+        let userId = 682WUG1HLca4zsq5hmgFGcP4pAM2;
         let isAdminMode = false;
         let isAuthReady = false;
 
         // ===============================================================================================
         // === 중요: 관리자로 사용할 실제 Firebase 사용자의 UID로 이 값을 변경하세요. ===
+        // === 현재 값은 사용자가 제공한 값으로 설정되어 있습니다. ===
         // ===============================================================================================
-        const ADMIN_UID = "682WUG1HLca4zsq5hmgFGcP4pAM2"; // 예: "Abc123xyz789..." 
+        const ADMIN_UID = "682WUG1HLca4zsq5hmgFGcP4pAM2"; 
         // ===============================================================================================
 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'aion-default-app'; // Default app ID if __app_id is not defined
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'aion-default-app'; 
 
         // Default Firebase config (placeholders, will be overridden by __firebase_config if available)
+        // 사용자의 실제 Firebase 프로젝트 설정과 일치해야 합니다.
         let firebaseConfig = {
             apiKey: "AIzaSyCAfrCXrHfYWUrvZ-SKqocCXu5QNCbFRH8",
             authDomain: "aion-18c27.firebaseapp.com",
             databaseURL: "https://aion-18c27-default-rtdb.firebaseio.com",
             projectId: "aion-18c27",
-            storageBucket: "aion-18c27.appspot.com",
+            storageBucket: "aion-18c27.appspot.com", // 표준 형식 .appspot.com 사용 권장
             messagingSenderId: "496946227122",
             appId: "1:496946227122:web:3c7efdd7d014743f3126ab",
             measurementId: "G-K2F99M91CM"
@@ -45,14 +47,14 @@
         if (typeof __firebase_config !== 'undefined') {
             try {
                 const parsedConfig = JSON.parse(__firebase_config);
-                firebaseConfig = { ...firebaseConfig, ...parsedConfig }; // Merge, allowing __firebase_config to override defaults
+                firebaseConfig = { ...firebaseConfig, ...parsedConfig }; 
                 console.log("Using provided Firebase config:", firebaseConfig);
             } catch (e) {
                 console.error("Error parsing __firebase_config:", e);
                 showToast("Firebase 설정 오류가 발생했습니다.", true);
             }
         } else {
-            console.warn("Global __firebase_config not found. Using default placeholders. Replace them with your actual Firebase config.");
+            console.warn("Global __firebase_config not found. Using hardcoded Firebase config. Ensure it matches your project.");
         }
 
         // Initialize Firebase App
@@ -85,24 +87,31 @@
 
         // --- Authentication Listener ---
         onAuthStateChanged(auth, async (user) => {
+            console.log("onAuthStateChanged triggered. User:", user);
             if (user) {
                 userId = user.uid;
                 console.log("User authenticated with UID:", userId);
                 isAdminMode = (userId === ADMIN_UID); 
-                console.log("Admin mode:", isAdminMode);
+                console.log("Admin mode set to:", isAdminMode);
                 document.getElementById('profileUserName').textContent = isAdminMode ? `관리자 (${userId.substring(0,6)}...)` : `사용자 (${userId.substring(0,6)}...)`;
                 document.getElementById('profileUserId').textContent = `User ID: ${userId}`;
-
             } else {
                 userId = null;
                 isAdminMode = false;
-                console.log("User is signed out or auth failed.");
+                console.log("User is signed out or auth token issue. Admin mode:", isAdminMode);
                 document.getElementById('profileUserName').textContent = '로그인 필요';
                 document.getElementById('profileUserId').textContent = 'User ID: N/A';
-                await attemptSignIn();
+                await attemptSignIn(); // Try to sign in (e.g., anonymously or with token)
             }
-            isAuthReady = true;
-            initializeAppLogic(); 
+            
+            if (!isAuthReady) { // 초기화 로직은 첫 auth 상태 확인 후 한 번만 실행되도록
+                isAuthReady = true;
+                initializeAppLogic(); 
+            } else { // 이미 초기화된 경우 UI만 업데이트
+                setupAdminUI(); // isAdminMode가 변경되었을 수 있으므로 UI 재설정
+                // User-specific data might need reloading or re-evaluation if userId changed significantly
+                loadAllDataAndRender(); // 데이터 리스너 재설정 및 UI 갱신
+            }
         });
 
         async function attemptSignIn() {
@@ -110,25 +119,37 @@
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     console.log("Attempting sign in with custom token...");
                     await signInWithCustomToken(auth, __initial_auth_token);
+                    // onAuthStateChanged will handle the user object
                 } else {
                     console.log("Attempting sign in anonymously...");
                     await signInAnonymously(auth);
+                    // onAuthStateChanged will handle the user object
                 }
             } catch (error) {
-                console.error("Error during sign-in:", error);
-                showToast("로그인 중 오류 발생: " + error.message, true);
-                userId = `guest-${Date.now()}-${Math.random().toString(36).substring(2,7)}`;
-                isAdminMode = false; 
-                isAuthReady = true;
-                initializeAppLogic(); 
+                console.error("Error during sign-in attempt:", error);
+                showToast("로그인 시도 중 오류 발생: " + error.message, true);
+                // Fallback to a guest ID if all sign-in attempts fail
+                if (!auth.currentUser) { // Ensure we don't overwrite an existing anonymous session if one eventually starts
+                    userId = `guest-${Date.now()}-${Math.random().toString(36).substring(2,7)}`;
+                    isAdminMode = false; 
+                    console.log("Fell back to guest ID:", userId);
+                    // If initializeAppLogic hasn't run yet because isAuthReady was false
+                    if (!isAuthReady) {
+                         isAuthReady = true;
+                         initializeAppLogic();
+                    } else {
+                        setupAdminUI(); // Update UI for guest state
+                        loadAllDataAndRender(); // Load public data for guest
+                    }
+                }
             }
         }
 
 
         // --- Main App Initialization ---
         function initializeAppLogic() {
-            if (!isAuthReady) {
-                console.log("Auth not ready yet, delaying app initialization.");
+            if (!isAuthReady) { // Should be redundant due to call pattern but safe check
+                console.log("Auth not ready yet, initializeAppLogic should not be called.");
                 return;
             }
             console.log("Initializing app logic. User ID:", userId, "Admin:", isAdminMode);
@@ -139,6 +160,7 @@
         }
 
         function setupAdminUI() {
+            console.log("setupAdminUI called. isAdminMode:", isAdminMode);
             const uploadSection = document.getElementById('upload');
             const uploadNavItemDesktop = document.querySelector('#desktopSidebar .nav-item[data-section="upload"]');
             const uploadNavItemMobile = document.querySelector('#mobileSidebar .nav-item[data-section="upload"]');
@@ -152,11 +174,10 @@
                 if (exportContentButtonContainerSidebar) exportContentButtonContainerSidebar.style.display = 'block';
                 if (exportContentButtonContainerMobileSidebar) exportContentButtonContainerMobileSidebar.style.display = 'block';
                 const adminUserIdDisplay = document.getElementById('adminUserIdDisplay');
-                if(adminUserIdDisplay) {
+                if(adminUserIdDisplay && userId) { // Ensure userId is available
                     adminUserIdDisplay.textContent = `관리자 ID: ${userId}`;
                     adminUserIdDisplay.classList.remove('hidden');
                 }
-
             } else {
                 if (uploadSection) uploadSection.style.display = 'none';
                 if (uploadNavItemDesktop) uploadNavItemDesktop.style.display = 'none';
@@ -165,20 +186,26 @@
                 if (exportContentButtonContainerMobileSidebar) exportContentButtonContainerMobileSidebar.style.display = 'none';
                 const adminUserIdDisplay = document.getElementById('adminUserIdDisplay');
                 if(adminUserIdDisplay) adminUserIdDisplay.classList.add('hidden');
-
             }
-            renderPageContent();
+            // No need to call renderPageContent() here, it's called by loadAllDataAndRender or snapshot updates
         }
 
 
         function loadAllDataAndRender() {
-            if (!isAuthReady) return;
+            if (!isAuthReady) {
+                console.log("loadAllDataAndRender: Auth not ready. Aborting.");
+                return;
+            }
+            console.log("loadAllDataAndRender called. Current userId:", userId, "isAdminMode:", isAdminMode);
 
+            // Clear existing listeners to prevent duplicates
             if (unsubscribeContentItems) unsubscribeContentItems();
             if (unsubscribePlaylists) unsubscribePlaylists();
             if (unsubscribeLikedItems) unsubscribeLikedItems();
             if (unsubscribeSubscribedArtists) unsubscribeSubscribedArtists();
 
+            // 1. Public Content Items Listener
+            console.log("Attaching Firestore listener for contentItems at path:", getContentItemsCollectionPath());
             const contentItemsQuery = query(collection(db, getContentItemsCollectionPath()), orderBy('createdAt', 'desc'));
             unsubscribeContentItems = onSnapshot(contentItemsQuery, (querySnapshot) => {
                 const itemsFromFirestore = [];
@@ -186,78 +213,70 @@
                     itemsFromFirestore.push({ ...doc.data(), itemId: doc.id });
                 });
                 allContentData = itemsFromFirestore;
-                console.log("Realtime: Content items updated", allContentData.length);
+                console.log("Realtime: Content items updated from Firestore. Count:", allContentData.length);
                 renderPageContent();
             }, (error) => {
-                console.error("Error fetching content items: ", error);
-                showToast('콘텐츠 로딩 실패 (Firestore).', true);
-                allContentData = [];
-                renderPageContent();
+                console.error("Error fetching content items from Firestore: ", error);
+                showToast('콘텐츠 로딩 실패 (Firestore 오류). 관리자에게 문의하거나 Firebase 설정을 확인하세요.', true);
+                allContentData = []; // Clear data on error
+                renderPageContent(); // Re-render to show placeholders or error state
             });
 
+            // User-specific data listeners
             if (userId && !userId.startsWith('guest-')) { 
+                console.log("Setting up listeners for user-specific data for userId:", userId);
+                // 2. User Playlists Listener
                 const playlistsQuery = query(collection(db, getUserPlaylistsCollectionPath(userId)), orderBy('createdAt', 'desc'));
                 unsubscribePlaylists = onSnapshot(playlistsQuery, (querySnapshot) => {
                     userPlaylists = [];
                     querySnapshot.forEach((doc) => {
                         userPlaylists.push({ ...doc.data(), id: doc.id });
                     });
-                    console.log("Realtime: User playlists updated", userPlaylists.length);
+                    console.log("Realtime: User playlists updated. Count:", userPlaylists.length);
                     renderMyPlaylists();
                     if (currentViewingPlaylistId && playlistDetailModal && !playlistDetailModal.classList.contains('hidden')) {
                         const updatedPlaylist = userPlaylists.find(p => p.id === currentViewingPlaylistId);
-                        if (updatedPlaylist) {
-                            openPlaylistDetailModal(currentViewingPlaylistId); 
-                        } else {
-                            closePlaylistDetailModal(); 
-                        }
+                        if (updatedPlaylist) openPlaylistDetailModal(currentViewingPlaylistId); 
+                        else closePlaylistDetailModal(); 
                     }
                 }, (error) => {
                     console.error("Error fetching user playlists: ", error);
                     showToast('플레이리스트 로딩 실패.', true);
-                    userPlaylists = [];
-                    renderMyPlaylists();
+                    userPlaylists = []; renderMyPlaylists();
                 });
 
+                // 3. User Liked Items Listener
                 const likedItemsQuery = query(collection(db, getUserLikedItemsCollectionPath(userId)));
                 unsubscribeLikedItems = onSnapshot(likedItemsQuery, (querySnapshot) => {
                     userLikedItemIds.clear();
-                    querySnapshot.forEach((doc) => {
-                        userLikedItemIds.add(doc.id); 
-                    });
-                    console.log("Realtime: User liked items updated", userLikedItemIds.size);
+                    querySnapshot.forEach((doc) => userLikedItemIds.add(doc.id));
+                    console.log("Realtime: User liked items updated. Count:", userLikedItemIds.size);
                     renderLikedSongs();
-                    renderPageContent(); 
+                    renderPageContent(); // For like icon updates on main content
                 }, (error) => {
                     console.error("Error fetching user liked items: ", error);
                     showToast('좋아요 정보 로딩 실패.', true);
-                    userLikedItemIds.clear();
-                    renderLikedSongs();
+                    userLikedItemIds.clear(); renderLikedSongs();
                 });
 
+                // 4. User Subscribed Artists Listener
                 const subscribedArtistsQuery = query(collection(db, getUserSubscribedArtistsCollectionPath(userId)));
                 unsubscribeSubscribedArtists = onSnapshot(subscribedArtistsQuery, (querySnapshot) => {
                     userSubscribedArtists.clear();
-                    querySnapshot.forEach((doc) => {
-                        userSubscribedArtists.add(doc.id); 
-                    });
-                    console.log("Realtime: User subscribed artists updated", userSubscribedArtists.size);
+                    querySnapshot.forEach((doc) => userSubscribedArtists.add(doc.id));
+                    console.log("Realtime: User subscribed artists updated. Count:", userSubscribedArtists.size);
                     renderSubscribedArtists();
-                    renderPageContent(); 
+                    renderPageContent(); // For subscribe icon updates
                 }, (error) => {
                     console.error("Error fetching user subscribed artists: ", error);
                     showToast('구독 정보 로딩 실패.', true);
-                    userSubscribedArtists.clear();
-                    renderSubscribedArtists();
+                    userSubscribedArtists.clear(); renderSubscribedArtists();
                 });
             } else {
-                userPlaylists = [];
-                userLikedItemIds.clear();
-                userSubscribedArtists.clear();
-                renderMyPlaylists();
-                renderLikedSongs();
-                renderSubscribedArtists();
-                renderPageContent(); 
+                console.log("User is guest or not logged in. Clearing user-specific data and listeners.");
+                userPlaylists = []; userLikedItemIds.clear(); userSubscribedArtists.clear();
+                renderMyPlaylists(); renderLikedSongs(); renderSubscribedArtists();
+                // renderPageContent(); // Already called by contentItems listener or its error handler
             }
         }
 
@@ -387,17 +406,24 @@
         function getYouTubeId(url) {
             if (!url) return '';
             let videoId = '';
-            const regExp = /^.*(http:\/\/googleusercontent.com\/youtube.com\/0\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-            const match = url.match(regExp);
-        
-            if (match && match[2].length === 11) {
-                videoId = match[2];
-            } else {
-                const usercontentMatch = url.match(/googleusercontent\.com\/youtube\.com\/\d+\/([^#\&\?]{11})/);
-                if (usercontentMatch && usercontentMatch[1]) {
-                    videoId = usercontentMatch[1];
+            // Standard YouTube URL patterns
+            // Order matters: check for watch, then embed, then short URL
+            const patterns = [
+                /(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?v=([^& \n<]{11})/, 
+                /(?:https?:\/\/)?(?:www\.)?youtube\.com\/embed\/([^? \n<]{11})/,   
+                /(?:https?:\/\/)?youtu\.be\/([^? \n<]{11})/,                       
+                // Fallback for googleusercontent URLs if they are still encountered
+                /googleusercontent\.com\/youtube\.com\/\d+\/([^#\&\?]{11})/ 
+            ];
+
+            for (const pattern of patterns) {
+                const match = url.match(pattern);
+                if (match && match[1]) {
+                    videoId = match[1];
+                    break;
                 }
             }
+            if (!videoId) console.warn("Could not extract YouTube ID from URL:", url);
             return videoId;
         }
 
@@ -521,18 +547,13 @@
         }
         
         function renderPageContent() {
+            // This function re-renders sections based on current allContentData and isAdminMode
+            // It's called by Firestore listeners when data changes, or after errors.
+            console.log("renderPageContent called. isAdminMode:", isAdminMode, "Content count:", allContentData.length);
             renderNewUploadsSection();
             renderAionChart();
             renderRecommendedMusicSection();
-             if (userId && !userId.startsWith('guest-')) {
-                renderMyPlaylists();
-                renderLikedSongs();
-                renderSubscribedArtists();
-            } else { 
-                if(myPlaylistsContainer && myPlaylistsPlaceholder) { clearContainer(myPlaylistsContainer, myPlaylistsPlaceholder); myPlaylistsPlaceholder.classList.remove('hidden'); myPlaylistsPlaceholder.textContent = "로그인이 필요합니다.";}
-                if(likedSongsContainer && likedSongsPlaceholder) { clearContainer(likedSongsContainer, likedSongsPlaceholder); likedSongsPlaceholder.classList.remove('hidden'); likedSongsPlaceholder.textContent = "로그인이 필요합니다.";}
-                if(subscribedArtistsContainer && subscribedArtistsPlaceholder) { clearContainer(subscribedArtistsContainer, subscribedArtistsPlaceholder); subscribedArtistsPlaceholder.classList.remove('hidden'); subscribedArtistsPlaceholder.textContent = "로그인이 필요합니다.";}
-            }
+            // User-specific sections are handled by their own render functions called by their listeners
         }
         
         function renderNewUploadsSection() {
@@ -1221,10 +1242,9 @@
         }
 
         // --- Initial Load ---
-        if (!auth.currentUser && (typeof __initial_auth_token === 'undefined' || !__initial_auth_token)) {
-            attemptSignIn();
-        }
-
+        // onAuthStateChanged will trigger the initial auth check and subsequent logic.
+        // If no user is initially found by onAuthStateChanged, attemptSignIn will be called.
+        // No need for an explicit call to attemptSignIn() here if onAuthStateChanged is guaranteed to fire on load.
 
     </script>
 
