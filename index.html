@@ -12,7 +12,7 @@
         // Firebase SDK v11.6.1 (Modular)
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, orderBy, serverTimestamp, increment, writeBatch, collectionGroup, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, orderBy, serverTimestamp, increment, writeBatch, collectionGroup, getDocs, Timestamp, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; // Timestamp, limit 추가
         import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-functions.js";
 
 
@@ -20,14 +20,9 @@
         let db, auth, functions;
         let userId = null; 
         let isAdminMode = false;
-        let appInitialized = false; // 앱 초기화 로직 실행 여부 플래그
+        let appInitialized = false; 
 
-        // ===============================================================================================
-        // === 관리자 UID 설정 (사용자 제공 값) ===
-        // ===============================================================================================
         const ADMIN_UID = "682WUG1HLca4zsq5hmgFGcP4pAM2"; 
-        // ===============================================================================================
-
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'aion-default-app'; 
 
         let firebaseConfig = {
@@ -77,38 +72,43 @@
         let unsubscribeSubscribedArtists = null;
 
         onAuthStateChanged(auth, async (currentUser) => {
-            console.log("onAuthStateChanged triggered. User:", currentUser ? currentUser.uid : 'null');
+            console.log("onAuthStateChanged triggered. User:", currentUser ? currentUser.uid : 'null', "App Initialized:", appInitialized);
             
+            const previousUserId = userId; // 이전 userId 저장
+
             if (currentUser) {
                 userId = currentUser.uid;
                 isAdminMode = (userId === ADMIN_UID);
-                console.log(`User authenticated: ${userId}, Admin: ${isAdminMode}`);
             } else {
                 userId = null;
                 isAdminMode = false;
-                console.log("User is signed out.");
             }
+            console.log(`Auth state determined. User ID: ${userId}, Admin: ${isAdminMode}`);
 
-            // 프로필 UI 즉시 업데이트
             document.getElementById('profileUserName').textContent = isAdminMode ? `관리자 (${userId ? userId.substring(0,6) : ''}...)` : (userId ? `사용자 (${userId.substring(0,6)}...)` : '로그인 필요');
             document.getElementById('profileUserId').textContent = `User ID: ${userId || 'N/A'}`;
             
-            setupAdminUI(); // isAdminMode가 변경될 수 있으므로 항상 호출하여 UI 일관성 유지
+            setupAdminUI(); 
 
             if (!appInitialized) {
-                if (!currentUser && !sessionStorage.getItem('initialSignInAttempted')) {
-                    sessionStorage.setItem('initialSignInAttempted', 'true');
-                    console.log("No user on first auth check, attempting sign-in.");
-                    await attemptSignIn(); // 이 함수는 onAuthStateChanged를 다시 트리거할 수 있음
-                    return; // 다음 onAuthStateChanged 호출에서 앱 초기화 진행
+                appInitialized = true; // 앱 초기화 시작 플래그
+                console.log("App not initialized. Current user for init:", userId);
+                if (!currentUser && !(typeof __initial_auth_token !== 'undefined' && __initial_auth_token)) {
+                    console.log("No persisted user and no initial token, attempting sign-in.");
+                    await attemptSignIn(); 
+                    // attemptSignIn은 onAuthStateChanged를 다시 트리거하므로, 여기서 initializeAppLogic을 직접 호출하지 않음
+                    // 다음 onAuthStateChanged 이벤트에서 currentUser가 설정된 후 initializeAppLogic이 호출됨
+                } else {
+                    // 사용자가 이미 있거나 (세션 유지 or __initial_auth_token), attemptSignIn이 필요 없는 경우
+                    console.log("User exists or token flow active. Initializing app logic directly.");
+                    await initializeAppLogic();
                 }
-                
-                console.log("App initializing for the first time...");
-                appInitialized = true;
-                initializeAppLogic();
+            } else if (userId !== previousUserId) { // 사용자가 변경된 경우 (로그인/로그아웃)
+                console.log("User changed. Reloading data and UI.");
+                loadAllDataAndRender(); // 새 사용자에 맞게 데이터 다시 로드
             } else {
-                // 앱이 이미 초기화된 후 인증 상태 변경 시 데이터만 다시 로드
-                console.log("Auth state changed subsequently. Reloading data.");
+                // 단순 isAdminMode 변경 등 (이 경우는 거의 없음, 보통 userId 변경과 동반)
+                console.log("Auth state changed without user change (e.g., token refresh). Forcing UI and data refresh.");
                 loadAllDataAndRender();
             }
         });
@@ -119,53 +119,119 @@
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     console.log("Attempting sign in with custom token...");
                     await signInWithCustomToken(auth, __initial_auth_token);
-                    // 성공 시 onAuthStateChanged가 호출되어 처리
                 } else if (!auth.currentUser) { 
                     console.log("No custom token and no current user. Attempting sign in anonymously...");
-                    // 중요: auth/admin-restricted-operation 오류 발생 시 Firebase 프로젝트 설정 확인 필요
                     // await signInAnonymously(auth); 
-                    console.warn("Anonymous sign-in attempt is currently commented out due to auth/admin-restricted-operation error. Enable if Firebase project settings allow it for non-admin users.");
-                    // 익명 로그인 시도 주석 처리. 필요시 활성화 및 Firebase 프로젝트 설정 확인
-                    if (!auth.currentUser) { // 익명 로그인 시도 후에도 사용자가 없으면 게스트 처리
+                    console.warn("익명 로그인 시도는 현재 주석 처리됨. Firebase 프로젝트 설정을 확인하고 필요시 활성화하세요. (auth/admin-restricted-operation 오류 관련)");
+                    if (!auth.currentUser) { 
                         userId = `guest-${Date.now()}-${Math.random().toString(36).substring(2,7)}`;
                         isAdminMode = false;
-                        console.log("Fell back to guest ID as anonymous sign-in is problematic/disabled:", userId);
-                        // UI 업데이트는 onAuthStateChanged에서 처리되거나, 여기서 직접 호출해야 할 수 있음
+                        console.log("익명 로그인 문제/비활성화로 게스트 ID로 대체:", userId);
+                        // 게스트 상태로 UI 및 데이터 로드 강제 실행 (onAuthStateChanged가 null로 다시 호출될 수 있음)
                         setupAdminUI(); 
-                        loadAllDataAndRender(); // 게스트용 데이터 로드
+                        loadAllDataAndRender();
                     }
-                } else {
-                    console.log("User already exists or custom token flow not applicable. No explicit sign-in attempt here.");
                 }
             } catch (error) {
                 console.error("Error during sign-in attempt in attemptSignIn():", error);
                 showToast("로그인 시도 중 오류: " + error.message, true);
-                if (!auth.currentUser) { // 최종적으로 사용자가 없으면 게스트 처리
+                if (!auth.currentUser) { 
                      userId = `guest-${Date.now()}-${Math.random().toString(36).substring(2,7)}`;
                      isAdminMode = false;
-                     console.log("Fell back to guest ID after sign-in error in attemptSignIn:", userId);
+                     console.log("로그인 시도 오류 후 게스트 ID로 대체:", userId);
                      setupAdminUI();
                      loadAllDataAndRender();
                 }
             }
         }
 
-        function initializeAppLogic() {
+        async function initializeAppLogic() {
             console.log("initializeAppLogic running. User ID:", userId, "Admin:", isAdminMode);
+            await handleInitialDataImport(); // JSON 데이터 임포트 시도
             setupEventListeners(); 
             loadAllDataAndRender(); 
         }
 
+        async function handleInitialDataImport() {
+            console.log("Checking for initial data import. isAdminMode:", isAdminMode);
+            if (!isAdminMode) {
+                console.log("Not an admin, skipping initial data import.");
+                return;
+            }
+
+            if (localStorage.getItem('aionInitialImportDone') === 'true') {
+                console.log("Initial data import already done (flag found).");
+                return;
+            }
+
+            try {
+                const contentItemsRef = collection(db, getContentItemsCollectionPath());
+                const q = query(contentItemsRef, limit(1));
+                const snapshot = await getDocs(q);
+
+                if (!snapshot.empty) {
+                    console.log("Firestore 'contentItems' collection is not empty. Skipping JSON import.");
+                    localStorage.setItem('aionInitialImportDone', 'true');
+                    return;
+                }
+
+                console.log("Firestore 'contentItems' is empty and import flag not set. Attempting to import from aion_content.json...");
+                const response = await fetch('./aion_content.json'); // HTML 파일과 동일 경로 가정
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch aion_content.json: ${response.statusText}`);
+                }
+                const jsonData = await response.json();
+
+                if (!Array.isArray(jsonData) || jsonData.length === 0) {
+                    console.log("aion_content.json is empty or not an array. Skipping import.");
+                    localStorage.setItem('aionInitialImportDone', 'true'); // 내용 없어도 다시 시도 안함
+                    return;
+                }
+
+                const batch = writeBatch(db);
+                jsonData.forEach(item => {
+                    const docRef = doc(collection(db, getContentItemsCollectionPath())); // 자동 ID 생성
+                    const dataToSave = {
+                        youtubeId: item.youtubeId || '',
+                        title: item.title || '제목 없음',
+                        aiMusicArtist: item.aiMusicArtist || '',
+                        aiTool: item.aiTool || '정보 없음',
+                        isInstrumental: item.isInstrumental === true, // boolean으로 명확히
+                        genre: item.genre || '',
+                        mood: item.mood || '',
+                        tags: item.tags || '',
+                        views: Number(item.views) || 0,
+                        isRecommended: item.isRecommended === true, // boolean으로 명확히
+                        uploaderId: item.uploaderId || ADMIN_UID, // 기본 업로더를 관리자로 설정
+                        createdAt: item.createdAt_iso ? Timestamp.fromDate(new Date(item.createdAt_iso)) : serverTimestamp(),
+                        updatedAt: serverTimestamp()
+                    };
+                    batch.set(docRef, dataToSave);
+                });
+
+                await batch.commit();
+                localStorage.setItem('aionInitialImportDone', 'true');
+                showToast(`${jsonData.length}개의 아이템을 aion_content.json에서 가져왔습니다.`);
+                console.log(`Successfully imported ${jsonData.length} items from aion_content.json`);
+
+            } catch (error) {
+                console.error("Error during initial data import:", error);
+                showToast("초기 데이터 가져오기 실패: " + error.message, true);
+                // 실패 시에도 플래그를 설정하여 반복적인 오류 방지 (선택 사항)
+                // localStorage.setItem('aionInitialImportDone', 'true'); 
+            }
+        }
+
+
         function setupAdminUI() {
             console.log("setupAdminUI called. Current isAdminMode:", isAdminMode, "Current userId:", userId);
-            const uploadSection = document.getElementById('upload'); // 업로드 "페이지" 섹션
+            const uploadSection = document.getElementById('upload'); 
             const uploadNavItemDesktop = document.querySelector('#desktopSidebar .nav-item[data-section="upload"]');
             const uploadNavItemMobile = document.querySelector('#mobileSidebar .nav-item[data-section="upload"]');
             const exportContentButtonContainerSidebar = document.getElementById('exportContentButtonContainerSidebar');
             const exportContentButtonContainerMobileSidebar = document.getElementById('exportContentButtonContainerMobileSidebar');
 
-            // 업로드 메뉴 아이템 표시 여부
-            if (isAdminMode && userId === ADMIN_UID) {
+            if (isAdminMode && userId === ADMIN_UID) { 
                 console.log("Setting up ADMIN menu items.");
                 if (uploadNavItemDesktop) uploadNavItemDesktop.style.display = 'flex';
                 if (uploadNavItemMobile) uploadNavItemMobile.style.display = 'flex';
@@ -186,28 +252,18 @@
                 if(adminUserIdDisplay) adminUserIdDisplay.classList.add('hidden');
             }
             
-            // 현재 활성화된 섹션이 'upload'가 아니라면 업로드 섹션은 숨김 (CSS의 .active 클래스가 우선)
-            // setupAdminUI는 주로 메뉴 아이템 표시/숨김을 담당하고, 실제 섹션 표시는 switchSection이 담당.
-            // 단, 관리자가 아닐 경우 업로드 섹션 자체를 강제로 숨길 수 있음.
-            if (!isAdminMode && uploadSection && uploadSection.classList.contains('active')) {
-                 switchSection('home'); // 관리자가 아니면 홈으로 강제 이동
+            // 업로드 섹션 자체의 표시는 switchSection에서 관리
+            const currentActiveSection = document.querySelector('.content-section.active');
+            if (uploadSection && (!isAdminMode || (currentActiveSection && currentActiveSection.id !== 'upload'))) {
+                uploadSection.style.display = 'none';
+            } else if (uploadSection && isAdminMode && currentActiveSection && currentActiveSection.id === 'upload') {
+                uploadSection.style.display = 'block';
             }
-            if (!isAdminMode && uploadSection) {
-                 uploadSection.style.display = 'none'; // 관리자 아니면 업로드 섹션 접근 불가
-            } else if (isAdminMode && uploadSection && uploadSection.classList.contains('active')) {
-                 uploadSection.style.display = 'block'; // 관리자이고 업로드 섹션이 활성이면 보이도록
-            } else if (uploadSection && !uploadSection.classList.contains('active')) {
-                 uploadSection.style.display = 'none'; // 활성 아니면 숨김
-            }
-
-
         }
 
         function loadAllDataAndRender() {
-            if (!appInitialized && !auth.currentUser) { // 앱 초기화 전이고, 현재 유저도 없으면 (익명 로그인 실패 등) 실행 않음
+            if (!appInitialized && !auth.currentUser) { 
                 console.log("loadAllDataAndRender: App not fully initialized or no user. Aborting data load.");
-                // Firestore 권한 오류를 방지하기 위해, 확실한 사용자 상태(익명이든 실제 사용자든)가 되기 전에는 데이터 로드 시도하지 않음
-                // "콘텐츠 로딩 실패" 토스트는 onSnapshot 에러 핸들러에서 처리
                 return;
             }
             console.log("loadAllDataAndRender called. Current userId:", userId, "isAdminMode:", isAdminMode);
@@ -312,40 +368,44 @@
 
         function switchSection(sectionId) {
             console.log("Switching to section:", sectionId);
+            const uploadSectionElement = document.getElementById('upload');
+
             contentSections.forEach(section => {
                 section.classList.remove('active');
-                // 업로드 섹션이 아닌 다른 섹션으로 전환 시, 업로드 섹션은 display:none으로 확실히 숨김
-                if (section.id === 'upload' && sectionId !== 'upload') {
-                    section.style.display = 'none';
-                }
+                section.style.display = 'none'; // 모든 섹션 일단 숨김
             });
+
             const targetSection = document.getElementById(sectionId);
             if (targetSection) {
-                targetSection.classList.add('active');
-                if (sectionId === 'upload' && isAdminMode) { // 업로드 섹션으로 전환하고 관리자일 경우
+                if (sectionId === 'upload') {
+                    if (isAdminMode) {
+                        targetSection.style.display = 'block';
+                        targetSection.classList.add('active');
+                    } else {
+                        showToast("관리자만 접근 가능합니다.", true);
+                        // 홈으로 리디렉션하고 홈 섹션을 활성화
+                        document.getElementById('home').style.display = 'block';
+                        document.getElementById('home').classList.add('active');
+                        updateNavActiveState('home'); // 네비게이션 아이템 상태도 업데이트
+                        return; 
+                    }
+                } else {
                     targetSection.style.display = 'block';
-                } else if (sectionId === 'upload' && !isAdminMode) { // 업로드 섹션으로 전환하려 하지만 관리자가 아닐 경우
-                    showToast("관리자만 접근 가능합니다.", true);
-                    switchSection('home'); // 홈으로 리디렉션
-                    return; // 여기서 함수 종료
+                    targetSection.classList.add('active');
                 }
             }
+            updateNavActiveState(sectionId);
+        }
 
+        function updateNavActiveState(activeSectionId) {
             document.querySelectorAll('#desktopSidebar .nav-item, #mobileSidebar .nav-item').forEach(nav => {
                 nav.classList.remove(activeNavClass);
                 nav.classList.add(inactiveNavClass);
-                if (nav.dataset.section === sectionId) {
+                if (nav.dataset.section === activeSectionId) {
                     nav.classList.add(activeNavClass);
                     nav.classList.remove(inactiveNavClass);
                 }
             });
-             // 업로드 섹션이 아닌 다른 섹션으로 이동 시, 업로드 섹션의 display 스타일을 none으로 설정
-            const uploadSectionElement = document.getElementById('upload');
-            if (uploadSectionElement && sectionId !== 'upload') {
-                uploadSectionElement.style.display = 'none';
-            }
-             // setupAdminUI를 호출하여 메뉴 아이템의 display 상태를 isAdminMode에 맞게 다시 조정
-            setupAdminUI();
         }
         
         function setupEventListeners() {
@@ -353,11 +413,7 @@
                 item.addEventListener('click', (e) => {
                     e.preventDefault();
                     const sectionId = item.dataset.section;
-                    if (sectionId === 'upload' && !isAdminMode) {
-                        showToast("관리자만 접근 가능합니다.", true);
-                        return; // 관리자가 아니면 업로드 섹션으로 이동하지 않음
-                    }
-                    switchSection(sectionId);
+                    switchSection(sectionId); // switchSection이 관리자 체크 및 UI 처리
                     if (mobileSidebar && !mobileSidebar.classList.contains('-translate-x-full')) {
                         closeMobileSidebar();
                     }
@@ -498,13 +554,17 @@
         const recommendedMusicContainer = document.getElementById('recommendedMusicContainer');
         const recommendedMusicPlaceholder = document.getElementById('recommendedMusicPlaceholder');
 
-        function createContentItemHTML(itemData, isChartItem = false) {
+        function createContentItemHTML(itemData) { // isChartItem 파라미터 제거
             let tagsHTML = itemData.tags ? itemData.tags.split(',').map(tag => `#${tag.trim()}`).join(' ') : '';
             if (itemData.genre) tagsHTML += ` <span class="text-purple-400">#${itemData.genre}</span>`;
             if (itemData.mood) tagsHTML += ` <span class="text-green-300">#${itemData.mood}</span>`;
             if (itemData.isInstrumental) tagsHTML += ` <span class="text-cyan-400">#Instrumental</span>`; 
             
-            if (isChartItem) tagsHTML += ` <span class="text-yellow-300"><i class="fas fa-eye text-xs"></i> ${itemData.views || 0}</span>`;
+            // 항상 조회수 표시 (값이 있는 경우)
+            if (typeof itemData.views === 'number') {
+                 tagsHTML += ` <span class="text-yellow-300 ml-2"><i class="fas fa-eye text-xs"></i> ${itemData.views}</span>`;
+            }
+
 
             let actionButtonsHTML = `<div class="item-action-icon-wrapper">`;
             
@@ -551,14 +611,14 @@
             `;
         }
         
-        function renderContentItem(itemData, container, isChartItem = false) {
+        function renderContentItem(itemData, container) { // isChartItem 파라미터 제거
             if (!container) return;
             const newItemDiv = document.createElement('div');
             let itemClasses = 'youtube-playable glassmorphism p-2 sm:p-3 rounded-lg hover:shadow-lg hover:shadow-purple-500/30 transition-shadow cursor-pointer'; 
             newItemDiv.className = itemClasses;
             newItemDiv.dataset.youtubeId = itemData.youtubeId;
             newItemDiv.dataset.itemId = itemData.itemId; 
-            newItemDiv.innerHTML = createContentItemHTML(itemData, isChartItem); 
+            newItemDiv.innerHTML = createContentItemHTML(itemData); // isChartItem 인수 제거
             
             if (container === newUploadsContainer) { 
                  container.insertBefore(newItemDiv, container.firstChild);
@@ -587,7 +647,7 @@
 
             if (itemsToDisplay.length > 0) {
                 if(newUploadsPlaceholder) newUploadsPlaceholder.classList.add('hidden');
-                itemsToDisplay.forEach(item => renderContentItem(item, newUploadsContainer, false));
+                itemsToDisplay.forEach(item => renderContentItem(item, newUploadsContainer)); // isChartItem 인수 제거
             } else {
                  if(newUploadsPlaceholder) {
                     newUploadsPlaceholder.classList.remove('hidden');
@@ -603,7 +663,7 @@
 
             if (recommendedItems.length > 0) {
                 recommendedMusicPlaceholder.classList.add('hidden'); 
-                recommendedItems.forEach(item => renderContentItem(item, recommendedMusicContainer, false));
+                recommendedItems.forEach(item => renderContentItem(item, recommendedMusicContainer)); // isChartItem 인수 제거
             } else {
                 recommendedMusicPlaceholder.classList.remove('hidden');
                 recommendedMusicPlaceholder.textContent = "추천된 음악이 없습니다.";
@@ -620,7 +680,7 @@
 
             if (chartItemsData.length > 0) {
                 if(aionChartPlaceholder) aionChartPlaceholder.classList.add('hidden'); 
-                chartItemsData.forEach(item => renderContentItem(item, aionChartContainer, true));
+                chartItemsData.forEach(item => renderContentItem(item, aionChartContainer)); // isChartItem 인수 제거 (createContentItemHTML에서 항상 조회수 표시)
             } else {
                 if(aionChartPlaceholder) {
                     aionChartPlaceholder.classList.remove('hidden');
@@ -668,7 +728,7 @@
                 document.getElementById('uploadMood').value = ""; 
                 document.getElementById('uploadAiTool').value = ""; 
                 document.getElementById('uploadIsInstrumental').checked = false;
-                switchSection('home'); // 업로드 성공 후 홈으로 이동
+                switchSection('home'); 
             } catch (error) {
                 console.error("Error adding document: ", error);
                 showToast('업로드 중 오류 발생: ' + error.message, true);
@@ -682,7 +742,7 @@
         const editItemModal = document.getElementById('editItemModal');
 
         async function handleContentInteraction(event) {
-            if (!appInitialized) return; // 앱 초기화 전에는 상호작용 방지
+            if (!appInitialized) return; 
 
             const targetPlayableItem = event.target.closest('.youtube-playable');
             const targetEditButton = event.target.closest('.edit-item-button');
@@ -1259,10 +1319,6 @@
             URL.revokeObjectURL(url);
             showToast(`콘텐츠가 aion_content_firestore_${appId}.json 파일로 내보내졌습니다.`);
         }
-
-        // 초기 로드 시 인증 상태 확인 및 로그인 시도
-        // onAuthStateChanged가 이 로직을 처리하므로, 별도의 document.addEventListener('DOMContentLoaded', ...)는 필요 없을 수 있습니다.
-        // onAuthStateChanged는 Firebase Auth SDK가 로드되고 auth 객체가 준비되면 자동으로 호출됩니다.
 
     </script>
 
