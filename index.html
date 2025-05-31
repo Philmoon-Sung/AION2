@@ -22,7 +22,12 @@
         let isAdminMode = false;
         let appInitialized = false; 
 
-        const ADMIN_UID = "682WUG1HLca4zsq5hmgFGcP4pAM2"; 
+        // ===============================================================================================
+        // === 일반 사용자 모드 강제 설정을 위해 ADMIN_UID 변경 ===
+        // ===============================================================================================
+        const ADMIN_UID = "THIS_IS_NOT_AN_ADMIN_UID"; // 관리자가 아닌 임의의 값으로 설정
+        // ===============================================================================================
+        
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'aion-default-app'; 
 
         let firebaseConfig = {
@@ -74,11 +79,11 @@
         onAuthStateChanged(auth, async (currentUser) => {
             console.log("onAuthStateChanged triggered. User:", currentUser ? currentUser.uid : 'null', "App Initialized:", appInitialized);
             
-            const previousUserId = userId; // 이전 userId 저장
+            const previousUserId = userId; 
 
             if (currentUser) {
                 userId = currentUser.uid;
-                isAdminMode = (userId === ADMIN_UID);
+                isAdminMode = (userId === ADMIN_UID); // 이 부분이 false가 됨
             } else {
                 userId = null;
                 isAdminMode = false;
@@ -91,23 +96,19 @@
             setupAdminUI(); 
 
             if (!appInitialized) {
-                appInitialized = true; // 앱 초기화 시작 플래그
+                appInitialized = true; 
                 console.log("App not initialized. Current user for init:", userId);
                 if (!currentUser && !(typeof __initial_auth_token !== 'undefined' && __initial_auth_token)) {
                     console.log("No persisted user and no initial token, attempting sign-in.");
                     await attemptSignIn(); 
-                    // attemptSignIn은 onAuthStateChanged를 다시 트리거하므로, 여기서 initializeAppLogic을 직접 호출하지 않음
-                    // 다음 onAuthStateChanged 이벤트에서 currentUser가 설정된 후 initializeAppLogic이 호출됨
                 } else {
-                    // 사용자가 이미 있거나 (세션 유지 or __initial_auth_token), attemptSignIn이 필요 없는 경우
                     console.log("User exists or token flow active. Initializing app logic directly.");
                     await initializeAppLogic();
                 }
-            } else if (userId !== previousUserId) { // 사용자가 변경된 경우 (로그인/로그아웃)
+            } else if (userId !== previousUserId) { 
                 console.log("User changed. Reloading data and UI.");
-                loadAllDataAndRender(); // 새 사용자에 맞게 데이터 다시 로드
+                loadAllDataAndRender(); 
             } else {
-                // 단순 isAdminMode 변경 등 (이 경우는 거의 없음, 보통 userId 변경과 동반)
                 console.log("Auth state changed without user change (e.g., token refresh). Forcing UI and data refresh.");
                 loadAllDataAndRender();
             }
@@ -127,7 +128,6 @@
                         userId = `guest-${Date.now()}-${Math.random().toString(36).substring(2,7)}`;
                         isAdminMode = false;
                         console.log("익명 로그인 문제/비활성화로 게스트 ID로 대체:", userId);
-                        // 게스트 상태로 UI 및 데이터 로드 강제 실행 (onAuthStateChanged가 null로 다시 호출될 수 있음)
                         setupAdminUI(); 
                         loadAllDataAndRender();
                     }
@@ -147,14 +147,14 @@
 
         async function initializeAppLogic() {
             console.log("initializeAppLogic running. User ID:", userId, "Admin:", isAdminMode);
-            await handleInitialDataImport(); // JSON 데이터 임포트 시도
+            await handleInitialDataImport(); 
             setupEventListeners(); 
             loadAllDataAndRender(); 
         }
 
         async function handleInitialDataImport() {
             console.log("Checking for initial data import. isAdminMode:", isAdminMode);
-            if (!isAdminMode) {
+            if (!isAdminMode) { // 일반 사용자 모드에서는 JSON 임포트 건너뛰기
                 console.log("Not an admin, skipping initial data import.");
                 return;
             }
@@ -176,7 +176,7 @@
                 }
 
                 console.log("Firestore 'contentItems' is empty and import flag not set. Attempting to import from aion_content.json...");
-                const response = await fetch('./aion_content.json'); // HTML 파일과 동일 경로 가정
+                const response = await fetch('./aion_content.json'); 
                 if (!response.ok) {
                     throw new Error(`Failed to fetch aion_content.json: ${response.statusText}`);
                 }
@@ -184,25 +184,25 @@
 
                 if (!Array.isArray(jsonData) || jsonData.length === 0) {
                     console.log("aion_content.json is empty or not an array. Skipping import.");
-                    localStorage.setItem('aionInitialImportDone', 'true'); // 내용 없어도 다시 시도 안함
+                    localStorage.setItem('aionInitialImportDone', 'true'); 
                     return;
                 }
 
                 const batch = writeBatch(db);
                 jsonData.forEach(item => {
-                    const docRef = doc(collection(db, getContentItemsCollectionPath())); // 자동 ID 생성
+                    const docRef = doc(collection(db, getContentItemsCollectionPath())); 
                     const dataToSave = {
                         youtubeId: item.youtubeId || '',
                         title: item.title || '제목 없음',
                         aiMusicArtist: item.aiMusicArtist || '',
                         aiTool: item.aiTool || '정보 없음',
-                        isInstrumental: item.isInstrumental === true, // boolean으로 명확히
+                        isInstrumental: item.isInstrumental === true, 
                         genre: item.genre || '',
                         mood: item.mood || '',
                         tags: item.tags || '',
                         views: Number(item.views) || 0,
-                        isRecommended: item.isRecommended === true, // boolean으로 명확히
-                        uploaderId: item.uploaderId || ADMIN_UID, // 기본 업로더를 관리자로 설정
+                        isRecommended: item.isRecommended === true, 
+                        uploaderId: item.uploaderId || ADMIN_UID, 
                         createdAt: item.createdAt_iso ? Timestamp.fromDate(new Date(item.createdAt_iso)) : serverTimestamp(),
                         updatedAt: serverTimestamp()
                     };
@@ -217,8 +217,6 @@
             } catch (error) {
                 console.error("Error during initial data import:", error);
                 showToast("초기 데이터 가져오기 실패: " + error.message, true);
-                // 실패 시에도 플래그를 설정하여 반복적인 오류 방지 (선택 사항)
-                // localStorage.setItem('aionInitialImportDone', 'true'); 
             }
         }
 
@@ -231,17 +229,10 @@
             const exportContentButtonContainerSidebar = document.getElementById('exportContentButtonContainerSidebar');
             const exportContentButtonContainerMobileSidebar = document.getElementById('exportContentButtonContainerMobileSidebar');
 
-            if (isAdminMode && userId === ADMIN_UID) { 
-                console.log("Setting up ADMIN menu items.");
-                if (uploadNavItemDesktop) uploadNavItemDesktop.style.display = 'flex';
-                if (uploadNavItemMobile) uploadNavItemMobile.style.display = 'flex';
-                if (exportContentButtonContainerSidebar) exportContentButtonContainerSidebar.style.display = 'block';
-                if (exportContentButtonContainerMobileSidebar) exportContentButtonContainerMobileSidebar.style.display = 'block';
-                const adminUserIdDisplay = document.getElementById('adminUserIdDisplay');
-                if(adminUserIdDisplay && userId) { 
-                    adminUserIdDisplay.textContent = `관리자 ID: ${userId}`;
-                    adminUserIdDisplay.classList.remove('hidden');
-                }
+            // isAdminMode가 false이므로 항상 일반 사용자 UI가 설정됨
+            if (isAdminMode) { 
+                // 이 블록은 실행되지 않아야 함
+                console.log("Setting up ADMIN menu items. (This should not happen in user mode)");
             } else {
                 console.log("Setting up USER menu items (or hiding admin menu items).");
                 if (uploadNavItemDesktop) uploadNavItemDesktop.style.display = 'none';
@@ -252,7 +243,6 @@
                 if(adminUserIdDisplay) adminUserIdDisplay.classList.add('hidden');
             }
             
-            // 업로드 섹션 자체의 표시는 switchSection에서 관리
             const currentActiveSection = document.querySelector('.content-section.active');
             if (uploadSection && (!isAdminMode || (currentActiveSection && currentActiveSection.id !== 'upload'))) {
                 uploadSection.style.display = 'none';
@@ -372,7 +362,7 @@
 
             contentSections.forEach(section => {
                 section.classList.remove('active');
-                section.style.display = 'none'; // 모든 섹션 일단 숨김
+                section.style.display = 'none'; 
             });
 
             const targetSection = document.getElementById(sectionId);
@@ -383,10 +373,9 @@
                         targetSection.classList.add('active');
                     } else {
                         showToast("관리자만 접근 가능합니다.", true);
-                        // 홈으로 리디렉션하고 홈 섹션을 활성화
                         document.getElementById('home').style.display = 'block';
                         document.getElementById('home').classList.add('active');
-                        updateNavActiveState('home'); // 네비게이션 아이템 상태도 업데이트
+                        updateNavActiveState('home'); 
                         return; 
                     }
                 } else {
@@ -413,7 +402,7 @@
                 item.addEventListener('click', (e) => {
                     e.preventDefault();
                     const sectionId = item.dataset.section;
-                    switchSection(sectionId); // switchSection이 관리자 체크 및 UI 처리
+                    switchSection(sectionId); 
                     if (mobileSidebar && !mobileSidebar.classList.contains('-translate-x-full')) {
                         closeMobileSidebar();
                     }
@@ -554,13 +543,12 @@
         const recommendedMusicContainer = document.getElementById('recommendedMusicContainer');
         const recommendedMusicPlaceholder = document.getElementById('recommendedMusicPlaceholder');
 
-        function createContentItemHTML(itemData) { // isChartItem 파라미터 제거
+        function createContentItemHTML(itemData) { 
             let tagsHTML = itemData.tags ? itemData.tags.split(',').map(tag => `#${tag.trim()}`).join(' ') : '';
             if (itemData.genre) tagsHTML += ` <span class="text-purple-400">#${itemData.genre}</span>`;
             if (itemData.mood) tagsHTML += ` <span class="text-green-300">#${itemData.mood}</span>`;
             if (itemData.isInstrumental) tagsHTML += ` <span class="text-cyan-400">#Instrumental</span>`; 
             
-            // 항상 조회수 표시 (값이 있는 경우)
             if (typeof itemData.views === 'number') {
                  tagsHTML += ` <span class="text-yellow-300 ml-2"><i class="fas fa-eye text-xs"></i> ${itemData.views}</span>`;
             }
@@ -611,14 +599,14 @@
             `;
         }
         
-        function renderContentItem(itemData, container) { // isChartItem 파라미터 제거
+        function renderContentItem(itemData, container) { 
             if (!container) return;
             const newItemDiv = document.createElement('div');
             let itemClasses = 'youtube-playable glassmorphism p-2 sm:p-3 rounded-lg hover:shadow-lg hover:shadow-purple-500/30 transition-shadow cursor-pointer'; 
             newItemDiv.className = itemClasses;
             newItemDiv.dataset.youtubeId = itemData.youtubeId;
             newItemDiv.dataset.itemId = itemData.itemId; 
-            newItemDiv.innerHTML = createContentItemHTML(itemData); // isChartItem 인수 제거
+            newItemDiv.innerHTML = createContentItemHTML(itemData); 
             
             if (container === newUploadsContainer) { 
                  container.insertBefore(newItemDiv, container.firstChild);
@@ -647,7 +635,7 @@
 
             if (itemsToDisplay.length > 0) {
                 if(newUploadsPlaceholder) newUploadsPlaceholder.classList.add('hidden');
-                itemsToDisplay.forEach(item => renderContentItem(item, newUploadsContainer)); // isChartItem 인수 제거
+                itemsToDisplay.forEach(item => renderContentItem(item, newUploadsContainer)); 
             } else {
                  if(newUploadsPlaceholder) {
                     newUploadsPlaceholder.classList.remove('hidden');
@@ -663,7 +651,7 @@
 
             if (recommendedItems.length > 0) {
                 recommendedMusicPlaceholder.classList.add('hidden'); 
-                recommendedItems.forEach(item => renderContentItem(item, recommendedMusicContainer)); // isChartItem 인수 제거
+                recommendedItems.forEach(item => renderContentItem(item, recommendedMusicContainer)); 
             } else {
                 recommendedMusicPlaceholder.classList.remove('hidden');
                 recommendedMusicPlaceholder.textContent = "추천된 음악이 없습니다.";
@@ -680,7 +668,7 @@
 
             if (chartItemsData.length > 0) {
                 if(aionChartPlaceholder) aionChartPlaceholder.classList.add('hidden'); 
-                chartItemsData.forEach(item => renderContentItem(item, aionChartContainer)); // isChartItem 인수 제거 (createContentItemHTML에서 항상 조회수 표시)
+                chartItemsData.forEach(item => renderContentItem(item, aionChartContainer)); 
             } else {
                 if(aionChartPlaceholder) {
                     aionChartPlaceholder.classList.remove('hidden');
