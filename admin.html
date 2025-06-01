@@ -157,7 +157,8 @@
             if (isAdminMode) {
                 if (uploadNavItemDesktop) uploadNavItemDesktop.style.display = 'flex';
                 if (uploadNavItemMobile) uploadNavItemMobile.style.display = 'flex';
-                // 업로드 섹션은 'upload' 메뉴 클릭 시 보이도록 초기에는 숨김 (switchSection에서 처리)
+                // 업로드 섹션은 switchSection에서 display:block으로 변경되므로, 여기서는 특별히 건드리지 않거나,
+                // 초기 상태가 active가 아니라면 숨김 처리합니다.
                 if (uploadSection && !uploadSection.classList.contains('active')) {
                      uploadSection.style.display = 'none';
                 }
@@ -223,7 +224,7 @@
         const activeNavClass = 'neon-accent-bg';
         const inactiveNavClass = 'hover:bg-purple-700/30';
         let desktopSidebar, mobileSidebar, mobileSidebarOverlay, mobileMenuButton, closeMobileSidebarButton;
-        let aionLogoDesktop, aionLogoMobile; // AION 로고 요소 추가
+        let aionLogoDesktop, aionLogoMobile; 
 
         function initializeMenuElements() {
             desktopSidebar = document.getElementById('desktopSidebar');
@@ -238,23 +239,29 @@
         function setInitialActiveSection() {
             if (!desktopSidebar || !mobileSidebar) { initializeMenuElements(); if (!desktopSidebar || !mobileSidebar) return; }
             const homeSection = document.getElementById('home');
-            if (homeSection) { homeSection.classList.add('active'); homeSection.style.display = 'block'; }
+            if (homeSection) { homeSection.classList.add('active'); homeSection.style.display = 'block'; } 
             
-            // 모든 네비게이션 아이템 초기화
             document.querySelectorAll('#desktopSidebar .nav-item, #mobileSidebar .nav-item').forEach(nav => {
                 nav.classList.remove(activeNavClass);
                 nav.classList.add(inactiveNavClass);
             });
 
-            const homeNavItemDesktop = desktopSidebar.querySelector('.nav-item[data-section="home"]');
-            const homeNavItemMobile = mobileSidebar.querySelector('.nav-item[data-section="home"]');
-            if (homeNavItemDesktop) { homeNavItemDesktop.classList.add(activeNavClass); homeNavItemDesktop.classList.remove(inactiveNavClass); }
-            if (homeNavItemMobile) { homeNavItemMobile.classList.add(activeNavClass); homeNavItemMobile.classList.remove(inactiveNavClass); }
+            const homeNavItemDesktop = desktopSidebar.querySelector('.nav-item[data-section="home"]'); 
+            const homeNavItemMobile = mobileSidebar.querySelector('.nav-item[data-section="home"]'); 
+            if (homeNavItemDesktop) { homeNavItemDesktop.classList.add(activeNavClass); homeNavItemDesktop.classList.remove(inactiveNavClass); } 
+            if (homeNavItemMobile) { homeNavItemMobile.classList.add(activeNavClass); homeNavItemMobile.classList.remove(inactiveNavClass); } 
         }
         
-        function switchSection(sectionId, forceShow = false) {
+        function switchSection(sectionId) { // forceShow 파라미터 제거, sectionId에 따라 항상 보이도록
             if (sectionId === 'upload' && !isAdminMode) { 
                 showToast("관리자만 접근 가능합니다.", true); 
+                // 홈으로 강제 이동 또는 현재 섹션 유지
+                const homeSection = document.getElementById('home');
+                if (homeSection) {
+                    homeSection.style.display = 'block';
+                    homeSection.classList.add('active');
+                }
+                updateNavActiveState('home');
                 return;
             }
             document.querySelectorAll('.content-section').forEach(s => { 
@@ -265,6 +272,9 @@
             if (targetSection) { 
                 targetSection.style.display = 'block'; 
                 targetSection.classList.add('active'); 
+                console.log(`Switched to section: ${sectionId}, display: ${targetSection.style.display}`);
+            } else {
+                console.warn(`Target section "${sectionId}" not found during switch.`);
             }
             updateNavActiveState(sectionId);
         }
@@ -284,7 +294,7 @@
             document.querySelectorAll('#desktopSidebar .nav-item, #mobileSidebar .nav-item').forEach(item => {
                 item.addEventListener('click', (e) => {
                     e.preventDefault(); const sectionId = item.dataset.section;
-                    switchSection(sectionId, true); // 메뉴 클릭 시 항상 보이도록
+                    switchSection(sectionId); // forceShow 파라미터 제거
                     if (mobileSidebar && !mobileSidebar.classList.contains('-translate-x-full')) closeMobileSidebar();
                 });
             });
@@ -293,19 +303,11 @@
             if (closeMobileSidebarButton) closeMobileSidebarButton.addEventListener('click', closeMobileSidebar);
             if (mobileSidebarOverlay) mobileSidebarOverlay.addEventListener('click', closeMobileSidebar);
 
-            // AION 로고 클릭 이벤트
             if (aionLogoDesktop) {
-                aionLogoDesktop.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    switchSection('home');
-                });
+                aionLogoDesktop.addEventListener('click', (e) => { e.preventDefault(); switchSection('home'); });
             }
             if (aionLogoMobile) {
-                aionLogoMobile.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    switchSection('home');
-                    closeMobileSidebar(); // 모바일에서는 로고 클릭 시 사이드바도 닫음
-                });
+                aionLogoMobile.addEventListener('click', (e) => { e.preventDefault(); switchSection('home'); closeMobileSidebar(); });
             }
 
             const uploadForm = document.getElementById('uploadForm');
@@ -319,7 +321,7 @@
             if (editItemForm) editItemForm.addEventListener('submit', handleEditFormSubmit);
             const editYoutubeLinkInput = document.getElementById('editYoutubeLink');
             if(editYoutubeLinkInput) editYoutubeLinkInput.addEventListener('input', updateEditThumbnailPreviewFromUrlInput);
-            const cancelEditItemButtonInModal = document.getElementById('cancelEditItemButtonInModal'); // 수정 모달 내의 취소 버튼 ID 변경
+            const cancelEditItemButtonInModal = document.getElementById('cancelEditItemButtonInModal'); 
             if(cancelEditItemButtonInModal) cancelEditItemButtonInModal.addEventListener('click', (e) => { e.preventDefault(); closeEditModal(); });
 
 
@@ -508,7 +510,7 @@
                 showToast("콘텐츠가 성공적으로 업로드되었습니다!");
                 document.getElementById('uploadForm').reset();
                 updateThumbnailPreview('', 'thumbnailPreview'); 
-                switchSection('home'); // 업로드 후 홈으로 이동
+                switchSection('home'); 
             } catch (error) {
                 console.error("Error uploading content (Admin):", error);
                 showToast("업로드 중 오류 발생: " + error.message, true);
@@ -778,26 +780,6 @@
         .thumbnail-image-container { width: 100%; overflow: hidden; border-radius: 0.375rem; aspect-ratio: 16 / 9; margin-bottom: 0.25rem;  } 
         .thumbnail-image { width: 100%; height: 100%; object-fit: cover; } 
 
-        /* 관리자용 업로드 폼 스타일 (사용자 버전에선 이 클래스들이 사용되지 않음) */
-        .form-input, .form-select, .form-textarea, .form-checkbox {
-            background-color: rgba(0,0,0,0.3);
-            border: 1px solid rgba(138, 43, 226, 0.5);
-            border-radius: 0.375rem; 
-            padding: 0.75rem; 
-            color: #e0e0e0;
-            width: 100%;
-        }
-        .form-input:focus, .form-select:focus, .form-textarea:focus {
-            outline: none;
-            border-color: #8A2BE2; 
-            box-shadow: 0 0 0 2px rgba(138, 43, 226, 0.5); 
-        }
-        .form-label {
-            margin-bottom: 0.5rem; 
-            font-weight: 500; 
-            display: block;
-        }
-        .form-checkbox { width: auto; margin-right: 0.5rem;}
     </style>
 </head>
 <body class="flex h-screen overflow-hidden">
