@@ -274,43 +274,81 @@
             }
         }
 
-        const navItems = document.querySelectorAll('.nav-item');
-        const contentSections = document.querySelectorAll('.content-section');
+        // DOM Elements for menu and navigation
+        const navItems = document.querySelectorAll('.nav-item'); // This might be better inside setupEventListeners or fetched as needed
+        const contentSections = document.querySelectorAll('.content-section'); // Same as above
         const activeNavClass = 'neon-accent-bg';
         const inactiveNavClass = 'hover:bg-purple-700/30';
-        const desktopSidebar = document.getElementById('desktopSidebar');
-        const mobileSidebar = document.getElementById('mobileSidebar');
-        const mobileSidebarOverlay = document.getElementById('mobileSidebarOverlay');
-        const mobileMenuButton = document.getElementById('mobileMenuButton');
-        const closeMobileSidebarButton = document.getElementById('closeMobileSidebarButton');
+        
+        // It's generally safer to get elements inside functions where they are used or once DOM is loaded.
+        // However, these are top-level consts, ensure DOM is ready when they are accessed.
+        // For this script structure (module in head), they should be fine if accessed after DOM parsing.
+        let desktopSidebar, mobileSidebar, mobileSidebarOverlay, mobileMenuButton, closeMobileSidebarButton;
 
-        document.getElementById('home').classList.add('active');
-        const homeNavItemDesktop = desktopSidebar.querySelector('.nav-item[data-section="home"]');
-        const homeNavItemMobile = mobileSidebar.querySelector('.nav-item[data-section="home"]');
-
-        if (homeNavItemDesktop) {
-            homeNavItemDesktop.classList.add(activeNavClass);
-            homeNavItemDesktop.classList.remove(inactiveNavClass);
+        // Function to initialize menu related elements
+        function initializeMenuElements() {
+            desktopSidebar = document.getElementById('desktopSidebar');
+            mobileSidebar = document.getElementById('mobileSidebar');
+            mobileSidebarOverlay = document.getElementById('mobileSidebarOverlay');
+            mobileMenuButton = document.getElementById('mobileMenuButton');
+            closeMobileSidebarButton = document.getElementById('closeMobileSidebarButton');
         }
-        if (homeNavItemMobile) {
-            homeNavItemMobile.classList.add(activeNavClass);
-            homeNavItemMobile.classList.remove(inactiveNavClass);
-        }
+        
+        // Call initialization once DOM is ready, or ensure it's called before use.
+        // For now, assuming they are found when needed. `initializeAppLogic` calls `setupEventListeners`.
+        // `setupEventListeners` is where these are first heavily used.
+        
+        // Initial active section setup
+        function setInitialActiveSection() {
+            // Ensure elements are available before manipulating them
+            if (!desktopSidebar || !mobileSidebar) {
+                console.warn("Sidebars not found for initial active section setup.");
+                // Attempt to re-initialize if called too early, though this is a fallback.
+                initializeMenuElements(); 
+                if (!desktopSidebar || !mobileSidebar) return; // Still not found, exit.
+            }
 
+            const homeSection = document.getElementById('home');
+            if (homeSection) {
+                 homeSection.classList.add('active');
+            } else {
+                console.error("Home section not found for initial setup.");
+            }
+
+            const homeNavItemDesktop = desktopSidebar.querySelector('.nav-item[data-section="home"]');
+            const homeNavItemMobile = mobileSidebar.querySelector('.nav-item[data-section="home"]');
+
+            if (homeNavItemDesktop) {
+                homeNavItemDesktop.classList.add(activeNavClass);
+                homeNavItemDesktop.classList.remove(inactiveNavClass);
+            }
+            if (homeNavItemMobile) {
+                homeNavItemMobile.classList.add(activeNavClass);
+                homeNavItemMobile.classList.remove(inactiveNavClass);
+            }
+        }
+        
+        // Call setInitialActiveSection after elements are initialized, e.g., in initializeAppLogic
+        // For now, the original placement might be fine if script execution order allows.
+        // Let's move this call to be safer. Original placement was at global scope.
 
         function switchSection(sectionId) {
             console.log("Switching to section (User):", sectionId);
 
-            if (sectionId === 'upload') { // 업로드 섹션 접근 시도 시
-                showToast("해당 기능은 지원되지 않습니다.", true); // 또는 "관리자만 접근 가능합니다."
-                // 홈으로 강제 이동하거나 현재 섹션 유지
-                document.getElementById('home').style.display = 'block';
-                document.getElementById('home').classList.add('active');
+            if (sectionId === 'upload') { 
+                showToast("해당 기능은 지원되지 않습니다.", true); 
+                const homeSection = document.getElementById('home');
+                if (homeSection) {
+                    homeSection.style.display = 'block';
+                    homeSection.classList.add('active');
+                }
                 updateNavActiveState('home');
                 return;
             }
-
-            contentSections.forEach(section => {
+            
+            // Ensure contentSections is up-to-date if dynamically added, or query here.
+            const currentContentSections = document.querySelectorAll('.content-section');
+            currentContentSections.forEach(section => {
                 section.classList.remove('active');
                 section.style.display = 'none';
             });
@@ -319,11 +357,18 @@
             if (targetSection) {
                 targetSection.style.display = 'block';
                 targetSection.classList.add('active');
+            } else {
+                 console.warn(`Target section "${sectionId}" not found.`);
             }
             updateNavActiveState(sectionId);
         }
 
         function updateNavActiveState(activeSectionId) {
+            // Ensure sidebars are available
+            if (!desktopSidebar || !mobileSidebar) {
+                console.warn("Sidebars not found for updating nav active state.");
+                return;
+            }
             document.querySelectorAll('#desktopSidebar .nav-item, #mobileSidebar .nav-item').forEach(nav => {
                 nav.classList.remove(activeNavClass);
                 nav.classList.add(inactiveNavClass);
@@ -335,42 +380,50 @@
         }
 
         function setupEventListeners() {
+            // Initialize menu elements here to ensure they are found
+            initializeMenuElements();
+            setInitialActiveSection(); // Set initial active section after elements are confirmed
+
             document.querySelectorAll('#desktopSidebar .nav-item, #mobileSidebar .nav-item').forEach(item => {
                 item.addEventListener('click', (e) => {
                     e.preventDefault();
                     const sectionId = item.dataset.section;
-                    // 'upload' 섹션 네비게이션 아이템은 setupAdminUI에서 숨겨지므로, 여기서 특별히 막을 필요는 없음
-                    // 만약 네비게이션 아이템이 남아있다면, 여기서도 막을 수 있음:
-                    // if (sectionId === 'upload' && !isAdminMode) {
-                    //     showToast("관리자만 접근 가능합니다.", true);
-                    //     return;
-                    // }
+                    console.log(`Nav item clicked: ${sectionId}`); // Log nav item click
                     switchSection(sectionId);
                     if (mobileSidebar && !mobileSidebar.classList.contains('-translate-x-full')) {
+                        console.log("Closing mobile sidebar after nav item click."); // Log closing action
                         closeMobileSidebar();
                     }
                 });
             });
 
-            if (mobileMenuButton) mobileMenuButton.addEventListener('click', openMobileSidebar);
-            if (closeMobileSidebarButton) closeMobileSidebarButton.addEventListener('click', closeMobileSidebar);
-            if (mobileSidebarOverlay) mobileSidebarOverlay.addEventListener('click', closeMobileSidebar);
+            if (mobileMenuButton) {
+                mobileMenuButton.addEventListener('click', (event) => {
+                    console.log("Mobile menu button clicked.", event); 
+                    openMobileSidebar();
+                });
+            } else {
+                console.error("Mobile menu button (mobileMenuButton) not found!");
+            }
 
-            // 업로드 폼 관련 이벤트 리스너는 isAdminMode가 false이므로 사실상 필요 없지만, 구조상 남겨둘 수 있음
-            // const uploadForm = document.getElementById('uploadForm');
-            // if (uploadForm) {
-            //     uploadForm.addEventListener('submit', handleUploadFormSubmit); // handleUploadFormSubmit 내부에서 isAdminMode 체크
-            // }
-            // const uploadYoutubeLinkInput = document.getElementById('uploadYoutubeLink');
-            // if (uploadYoutubeLinkInput) uploadYoutubeLinkInput.addEventListener('input', updateThumbnailPreviewFromUrlInput);
+            if (closeMobileSidebarButton) {
+                closeMobileSidebarButton.addEventListener('click', (event) => {
+                    console.log("Close mobile sidebar button clicked.", event);
+                    closeMobileSidebar();
+                });
+            } else {
+                console.error("Close mobile sidebar button (closeMobileSidebarButton) not found!");
+            }
+            
+            if (mobileSidebarOverlay) {
+                mobileSidebarOverlay.addEventListener('click', (event) => {
+                     console.log("Mobile sidebar overlay clicked.", event);
+                    closeMobileSidebar();
+                });
+            } else {
+                console.error("Mobile sidebar overlay (mobileSidebarOverlay) not found!");
+            }
 
-            // 수정 폼 관련 이벤트 리스너도 마찬가지
-            // const editItemForm = document.getElementById('editItemForm');
-            // if (editItemForm) editItemForm.addEventListener('submit', handleEditFormSubmit);
-            // const editYoutubeLinkInput = document.getElementById('editYoutubeLink');
-            // if(editYoutubeLinkInput) editYoutubeLinkInput.addEventListener('input', updateEditThumbnailPreviewFromUrlInput);
-            // const cancelEditItemButton = document.getElementById('cancelEditItem');
-            // if(cancelEditItemButton) cancelEditItemButton.addEventListener('click', () => closeEditModal());
 
             const closeYoutubeModalButton = document.getElementById('closeYoutubeModalButton');
             if(closeYoutubeModalButton) closeYoutubeModalButton.addEventListener('click', closeYoutubeModal);
@@ -397,32 +450,27 @@
 
 
             document.body.addEventListener('click', handleContentInteraction);
-
-            // JSON 내보내기 버튼 이벤트 리스너는 setupAdminUI에서 버튼 자체가 숨겨지므로 필요 없음
-            // const exportBtnSidebar = document.getElementById('exportContentButtonSidebar');
-            // const exportBtnMobileSidebar = document.getElementById('exportContentButtonMobileSidebar');
-            // if (exportBtnSidebar) exportBtnSidebar.addEventListener('click', exportContentToJson);
-            // if (exportBtnMobileSidebar) exportBtnMobileSidebar.addEventListener('click', exportContentToJson);
-
-            // 업로드 콘텐츠 유형 선택 리스너도 업로드 섹션이 숨겨지므로 불필요
-            // const uploadContentTypeSelect = document.getElementById('uploadContentType');
-            //  if (uploadContentTypeSelect) {
-            //     uploadContentTypeSelect.addEventListener('change', toggleUploadFields);
-            //     toggleUploadFields();
-            // }
         }
 
         function openMobileSidebar() {
+            console.log("Attempting to open mobile sidebar...");
             if (mobileSidebar && mobileSidebarOverlay) {
                 mobileSidebar.classList.remove('-translate-x-full');
                 mobileSidebarOverlay.classList.remove('hidden');
+                console.log("Mobile sidebar opened successfully.");
+            } else {
+                console.error("Cannot open mobile sidebar: mobileSidebar or mobileSidebarOverlay element not found.", { mobileSidebarExists: !!mobileSidebar, overlayExists: !!mobileSidebarOverlay });
             }
         }
 
         function closeMobileSidebar() {
+            console.log("Attempting to close mobile sidebar...");
             if (mobileSidebar && mobileSidebarOverlay) {
                 mobileSidebar.classList.add('-translate-x-full');
                 mobileSidebarOverlay.classList.add('hidden');
+                console.log("Mobile sidebar closed successfully.");
+            } else {
+                 console.error("Cannot close mobile sidebar: mobileSidebar or mobileSidebarOverlay element not found.", { mobileSidebarExists: !!mobileSidebar, overlayExists: !!mobileSidebarOverlay });
             }
         }
 
@@ -454,11 +502,6 @@
         function getYouTubeThumbnailUrl(videoId) {
             return videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : defaultThumbnail;
         }
-
-        // 아래 두 함수는 업로드/수정 기능이 없으므로 사용자 버전에서는 호출되지 않음
-        // function updateThumbnailPreview(url, previewElement) { ... }
-        // function updateThumbnailPreviewFromUrlInput() { ... }
-        // function updateEditThumbnailPreviewFromUrlInput() { ... }
 
         const toastMessageElement = document.getElementById('toastMessage');
         function showToast(message, isError = false) {
@@ -497,12 +540,9 @@
                 const likeTitle = isLiked ? '좋아요 취소' : '좋아요';
                 actionButtonsHTML +=`<i class="${likeIconClass} item-action-icon like-item-button" title="${likeTitle}"></i>`;
             }
-
-            // 관리자 버튼은 isAdminMode가 false이므로 이 블록은 실행되지 않음
-            // if (isAdminMode) { ... }
             actionButtonsHTML += `</div>`;
 
-            const imageClass = "h-20 sm:h-24 md:h-32";
+            const imageClass = "h-20 sm:h-24 md:h-32"; // 이 높이는 카드 크기에 영향
             const artistDisplay = itemData.aiMusicArtist || itemData.aiTool || 'N/A';
 
             let subscribeIconHTML = '';
@@ -512,7 +552,6 @@
                 const subscribeTitle = isSubscribed ? `${artistDisplay} 구독 취소` : `${artistDisplay} 구독`;
                 subscribeIconHTML = `<i class="${subscribeIconClass} subscribe-artist-icon" data-artist-name="${artistDisplay}" title="${subscribeTitle}"></i>`;
             }
-
 
             return `
                 ${actionButtonsHTML}
@@ -531,6 +570,7 @@
         function renderContentItem(itemData, container) {
             if (!container) return;
             const newItemDiv = document.createElement('div');
+            // p-2 sm:p-3 는 카드 내부 패딩, 카드 크기 자체는 grid와 gap에 의해 결정됨
             let itemClasses = 'youtube-playable glassmorphism p-2 sm:p-3 rounded-lg hover:shadow-lg hover:shadow-purple-500/30 transition-shadow cursor-pointer';
             newItemDiv.className = itemClasses;
             newItemDiv.dataset.youtubeId = itemData.youtubeId;
@@ -576,7 +616,6 @@
         function renderRecommendedMusicSection() {
             if (!recommendedMusicContainer || !recommendedMusicPlaceholder) return;
             clearContainer(recommendedMusicContainer, recommendedMusicPlaceholder);
-            // 사용자 버전에서는 isRecommended가 true인 항목만 필터링 (관리자가 설정한 추천)
             const recommendedItems = allContentData.filter(item => item.isRecommended === true);
 
             if (recommendedItems.length > 0) {
@@ -607,42 +646,26 @@
             }
         }
 
-        // handleUploadFormSubmit 함수는 사용자 버전에서는 호출될 일이 없으므로 주석 처리하거나 삭제 가능
-        // async function handleUploadFormSubmit(event) { ... }
-
         const youtubeModal = document.getElementById('youtubeModal');
         const youtubePlayer = document.getElementById('youtubePlayer');
         let currentItemToAddToPlaylist = null;
-        // currentEditingItemId 및 editItemModal은 사용자 버전에서 필요 없음
-        // let currentEditingItemId = null;
-        // const editItemModal = document.getElementById('editItemModal');
-
 
         async function handleContentInteraction(event) {
             if (!appInitialized) return;
 
             const targetPlayableItem = event.target.closest('.youtube-playable');
-            // 관리자 버튼 관련 변수는 사용자 버전에서 필요 없음
-            // const targetEditButton = event.target.closest('.edit-item-button');
-            // const targetDeleteButton = event.target.closest('.delete-item-button');
-            // const targetRecommendButton = event.target.closest('.recommend-checkbox-icon');
             const targetAddToPlaylistButton = event.target.closest('.add-to-playlist-icon');
             const targetSubscribeButton = event.target.closest('.subscribe-artist-icon');
             const targetLikeButton = event.target.closest('.like-item-button');
 
 
-            if (targetPlayableItem && !targetAddToPlaylistButton && !targetSubscribeButton && !targetLikeButton) { // 관리자 버튼 체크 제거
+            if (targetPlayableItem && !targetAddToPlaylistButton && !targetSubscribeButton && !targetLikeButton) { 
                 const youtubeId = targetPlayableItem.dataset.youtubeId;
                 const itemId = targetPlayableItem.dataset.itemId;
                 if (youtubeId && itemId) {
                     openYoutubeModal(youtubeId, itemId);
                 }
             }
-
-            // 관리자 기능 호출 부분은 isAdminMode가 false이므로 실행되지 않음
-            // if (isAdminMode && targetEditButton) { ... }
-            // if (isAdminMode && targetDeleteButton) { ... }
-            // if (isAdminMode && targetRecommendButton) { ... }
 
             if (userId && !userId.startsWith('guest-') && targetAddToPlaylistButton) {
                 event.stopPropagation();
@@ -665,7 +688,7 @@
 
         function openYoutubeModal(youtubeId, itemId) {
             if (youtubePlayer && youtubeModal) {
-                youtubePlayer.src = `https://www.youtube.com/embed/$${youtubeId}?autoplay=1&rel=0`;
+                youtubePlayer.src = `https://www.youtube.com/embed/${youtubeId}?autoplay=1&rel=0`; // Corrected YouTube embed URL
                 youtubeModal.classList.remove('hidden');
                 youtubeModal.classList.add('flex');
                 incrementViewCount(itemId);
@@ -691,19 +714,6 @@
                 console.error('Error incrementing view count (User):', error);
             }
         }
-
-        // openEditModalWithData, closeEditModal, handleEditFormSubmit 함수는 사용자 버전에서 불필요
-        // async function openEditModalWithData(itemId) { ... }
-        // function closeEditModal() { ... }
-        // async function handleEditFormSubmit(event) { ... }
-
-        // deleteContentItem, toggleRecommendation 함수는 사용자 버전에서 불필요
-        // async function deleteContentItem(itemIdToDelete) { ... }
-        // async function toggleRecommendation(itemId) { ... }
-
-        // toggleUploadFields 함수는 사용자 버전에서 불필요
-        // function toggleUploadFields() { ... }
-
 
         const myPlaylistsContainer = document.getElementById('myPlaylistsContainer');
         const myPlaylistsPlaceholder = document.getElementById('myPlaylistsPlaceholder');
@@ -925,7 +935,9 @@
         async function handleDeletePlaylist() {
             if (!userId || userId.startsWith('guest-') || !currentViewingPlaylistId) return;
             const playlist = userPlaylists.find(p => p.id === currentViewingPlaylistId);
-            if (playlist && confirm(`'${playlist.name}' 플레이리스트를 정말 삭제하시겠습니까?`)) {
+            // Custom modal for confirmation instead of window.confirm
+            const confirmDelete = await showConfirmationModal(`'${playlist.name}' 플레이리스트를 정말 삭제하시겠습니까?`);
+            if (playlist && confirmDelete) {
                 try {
                     const playlistRef = doc(db, getUserPlaylistsCollectionPath(userId), currentViewingPlaylistId);
                     await deleteDoc(playlistRef);
@@ -937,6 +949,39 @@
                 }
             }
         }
+
+        // Custom confirmation modal (simple example)
+        function showConfirmationModal(message) {
+            return new Promise((resolve) => {
+                const modalHtml = `
+                    <div id="customConfirmModal" class="modal fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[100]">
+                        <div class="glassmorphism p-6 rounded-lg shadow-xl w-full max-w-sm">
+                            <p class="text-white mb-4 text-sm">${message}</p>
+                            <div class="flex justify-end space-x-3">
+                                <button id="customConfirmCancel" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg text-sm font-medium">취소</button>
+                                <button id="customConfirmOk" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium">삭제</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+                const confirmModal = document.getElementById('customConfirmModal');
+                const okButton = document.getElementById('customConfirmOk');
+                const cancelButton = document.getElementById('customConfirmCancel');
+
+                okButton.onclick = () => {
+                    confirmModal.remove();
+                    resolve(true);
+                };
+                cancelButton.onclick = () => {
+                    confirmModal.remove();
+                    resolve(false);
+                };
+            });
+        }
+
+
         async function removeSongFromPlaylist(playlistId, itemIdToRemove) {
             if (!userId || userId.startsWith('guest-')) return;
             const playlist = userPlaylists.find(pl => pl.id === playlistId);
@@ -946,6 +991,10 @@
                     const playlistRef = doc(db, getUserPlaylistsCollectionPath(userId), playlistId);
                     await updateDoc(playlistRef, { items: updatedItems });
                     showToast('플레이리스트에서 곡이 삭제되었습니다.');
+                    // If the detail modal is open for this playlist, refresh its content
+                    if (currentViewingPlaylistId === playlistId && playlistDetailModal && !playlistDetailModal.classList.contains('hidden')) {
+                        openPlaylistDetailModal(playlistId); // Re-render the modal content
+                    }
                 } catch (error) {
                     console.error("Error removing song from playlist (User): ", error);
                     showToast("곡 삭제 오류.", true);
@@ -984,7 +1033,19 @@
 
             if (userLikedItemIds.size > 0) {
                 likedSongsPlaceholder.classList.add('hidden');
-                userLikedItemIds.forEach(likedId => {
+                // Firestore returns a Set, convert to array and sort if needed, or process as is.
+                // To show most recent likes first, you'd need to store 'likedAt' and sort.
+                // For now, just iterating the set.
+                const likedItemsArray = Array.from(userLikedItemIds); 
+                // If you want to sort by when they were added (assuming allContentData has createdAt):
+                // likedItemsArray.sort((aId, bId) => {
+                //    const itemA = allContentData.find(item => item.itemId === aId);
+                //    const itemB = allContentData.find(item => item.itemId === bId);
+                //    return (itemB?.createdAt?.toMillis() || 0) - (itemA?.createdAt?.toMillis() || 0);
+                // });
+
+
+                likedItemsArray.forEach(likedId => {
                     const itemData = allContentData.find(item => item.itemId === likedId);
                     if (itemData) {
                         const itemDiv = document.createElement('div');
@@ -1074,9 +1135,6 @@
             }
         }
 
-        // exportContentToJson 함수는 사용자 버전에서 불필요
-        // function exportContentToJson() { ... }
-
     </script>
 
     <style>
@@ -1099,30 +1157,38 @@
         .item-action-icon-wrapper { position: absolute; top: 0.5rem; right: 0.5rem; display: flex; flex-direction: row; align-items: center; gap: 0.35rem; z-index: 10; }
         .item-action-icon { background-color: rgba(0,0,0,0.7); color: white; border-radius: 50%; cursor: pointer; transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out; opacity: 0; display: inline-flex; align-items: center; justify-content: center; width: 2.5rem; height: 2.5rem; font-size: 1.125rem; padding: 0.5rem; }
         .item-action-icon:hover { opacity: 1; transform: scale(1.15); }
-        .recommend-checkbox-icon.recommended, .like-item-button.liked { color: #facc15; }
+        .recommend-checkbox-icon.recommended, .like-item-button.liked { color: #facc15; } /* Note: .liked was used for like button, .text-red-500 is also used in JS. Ensure consistency or specific target. */
         .subscribe-artist-icon { color: #cbd5e1; cursor: pointer; transition: color 0.2s ease-in-out, transform 0.2s ease-in-out; font-size: 0.8rem; margin-left: 0.25rem; }
-        .subscribe-artist-icon.subscribed { color: #ef4444; }
+        .subscribe-artist-icon.subscribed { color: #ef4444; } /* This class is used in JS for subscribed state */
         .subscribe-artist-icon:hover { transform: scale(1.2); }
         .youtube-playable:hover .item-action-icon { opacity: 0.8; }
-        .youtube-playable { position: relative; padding-top: 3rem; }
+        .youtube-playable { position: relative; padding-top: 3rem; } /* This padding is for action icons on mobile */
         .toast-message { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); color: white; padding: 10px 20px; border-radius: 8px; z-index: 1000; opacity: 0; transition: opacity 0.5s ease-in-out; font-size: 0.9rem; box-shadow: 0 4px 15px rgba(138, 43, 226, 0.4); }
         .toast-message.show { opacity: 1; }
-        .item-title { font-size: 0.75rem; font-weight: 500; line-height: 1.2; }
-        .item-artist, .item-tags { font-size: 0.65rem; line-height: 1.2; }
-        @media (min-width: 768px) {
-            .item-title { font-size: 0.875rem; }
+        .item-title { font-size: 0.75rem; font-weight: 500; line-height: 1.2; } /* Small text for mobile */
+        .item-artist, .item-tags { font-size: 0.65rem; line-height: 1.2; } /* Even smaller */
+        
+        @media (min-width: 640px) { /* sm breakpoint */
+            .item-title { font-size: 0.875rem; } /* Slightly larger for sm screens */
             .item-artist, .item-tags { font-size: 0.75rem; }
-            .youtube-playable { padding-top: 0; }
+        }
+        @media (min-width: 768px) { /* md breakpoint */
+            .youtube-playable { padding-top: 0; } /* Remove top padding for icons as layout changes */
+            /* Item title/artist/tags can be larger if needed for md+ */
         }
         .item-artist-wrapper { display: flex; align-items: center; }
         .playlist-card { display: flex; align-items: center; padding: 0.75rem; border-radius: 0.5rem; transition: background-color 0.2s; }
         .playlist-card:hover { background-color: rgba(138, 43, 226, 0.2); }
         .playlist-cover { width: 4rem; height: 4rem; border-radius: 0.375rem; object-fit: cover; margin-right: 0.75rem; background-color: rgba(138, 43, 226, 0.3); display: flex; align-items: center; justify-content: center; }
         .playlist-cover i { font-size: 1.5rem; color: rgba(224, 224, 224, 0.7); }
-        #mobileSidebar.hidden { transform: translateX(-100%); }
+        
+        /* Mobile Sidebar specific styles */
+        #mobileSidebar.hidden { transform: translateX(-100%); } /* Ensure this is not applied initially if using -translate-x-full */
         #mobileSidebarOverlay.hidden { display: none; }
-        .thumbnail-image-container { width: 100%; overflow: hidden; border-radius: 0.375rem; }
-        .thumbnail-image { width: 100%; object-fit: cover; }
+
+        .thumbnail-image-container { width: 100%; overflow: hidden; border-radius: 0.375rem; aspect-ratio: 16 / 9; } /* Added aspect-ratio for consistent thumbnail shape */
+        .thumbnail-image { width: 100%; height: 100%; object-fit: cover; } /* Ensure image fills container */
+
     </style>
 </head>
 <body class="flex h-screen overflow-hidden">
@@ -1134,20 +1200,17 @@
             <h1 class="text-4xl font-bold">AION</h1>
         </div>
         <nav class="space-y-4 flex-grow w-full">
-            <a href="#" class="nav-item flex items-center space-x-3 p-3 rounded-lg hover:bg-purple-700/30 transition-colors duration-200 active-nav" data-section="home">
-                <i class="fas fa-home fa-fw text-xl sidebar-icon"></i>
+            <a href="#" class="nav-item flex items-center space-x-3 p-3 rounded-lg hover:bg-purple-700/30 transition-colors duration-200" data-section="home"> <i class="fas fa-home fa-fw text-xl sidebar-icon"></i>
                 <span class="text-sm">홈</span>
             </a>
             <a href="#" class="nav-item flex items-center space-x-3 p-3 rounded-lg hover:bg-purple-700/30 transition-colors duration-200" data-section="library">
                 <i class="fas fa-list-alt fa-fw text-xl sidebar-icon"></i>
                 <span class="text-sm">플레이 리스트</span>
             </a>
-            <a href="#" class="nav-item flex items-center space-x-3 p-3 rounded-lg hover:bg-purple-700/30 transition-colors duration-200" data-section="upload" style="display: none;">
-                <i class="fas fa-upload fa-fw text-xl sidebar-icon"></i>
+            <a href="#" class="nav-item flex items-center space-x-3 p-3 rounded-lg hover:bg-purple-700/30 transition-colors duration-200" data-section="upload" style="display: none;"> <i class="fas fa-upload fa-fw text-xl sidebar-icon"></i>
                 <span class="text-sm">업로드</span>
             </a>
-             <div id="exportContentButtonContainerSidebar" style="display: none;">
-                 <button id="exportContentButtonSidebar" class="w-full flex items-center space-x-3 p-3 rounded-lg text-sm text-gray-300 hover:bg-blue-700/30 transition-colors duration-200">
+             <div id="exportContentButtonContainerSidebar" style="display: none;"> <button id="exportContentButtonSidebar" class="w-full flex items-center space-x-3 p-3 rounded-lg text-sm text-gray-300 hover:bg-blue-700/30 transition-colors duration-200">
                     <i class="fas fa-file-export fa-fw text-xl sidebar-icon"></i>
                     <span class="text-sm">JSON 내보내기</span>
                 </button>
@@ -1173,20 +1236,17 @@
             </button>
         </div>
         <nav class="space-y-3 flex-grow w-full">
-            <a href="#" class="nav-item flex items-center space-x-3 p-3 rounded-lg hover:bg-purple-700/30 transition-colors duration-200 active-nav" data-section="home">
-                <i class="fas fa-home fa-fw text-lg sidebar-icon"></i>
+            <a href="#" class="nav-item flex items-center space-x-3 p-3 rounded-lg hover:bg-purple-700/30 transition-colors duration-200" data-section="home"> <i class="fas fa-home fa-fw text-lg sidebar-icon"></i>
                 <span class="text-sm">홈</span>
             </a>
             <a href="#" class="nav-item flex items-center space-x-3 p-3 rounded-lg hover:bg-purple-700/30 transition-colors duration-200" data-section="library">
                 <i class="fas fa-list-alt fa-fw text-lg sidebar-icon"></i>
                 <span class="text-sm">플레이 리스트</span>
             </a>
-            <a href="#" class="nav-item flex items-center space-x-3 p-3 rounded-lg hover:bg-purple-700/30 transition-colors duration-200" data-section="upload" style="display: none;">
-                <i class="fas fa-upload fa-fw text-lg sidebar-icon"></i>
+            <a href="#" class="nav-item flex items-center space-x-3 p-3 rounded-lg hover:bg-purple-700/30 transition-colors duration-200" data-section="upload" style="display: none;"> <i class="fas fa-upload fa-fw text-lg sidebar-icon"></i>
                 <span class="text-sm">업로드</span>
             </a>
-            <div id="exportContentButtonContainerMobileSidebar" style="display: none;">
-                 <button id="exportContentButtonMobileSidebar" class="w-full flex items-center space-x-3 p-3 rounded-lg text-sm text-gray-300 hover:bg-blue-700/30 transition-colors duration-200">
+            <div id="exportContentButtonContainerMobileSidebar" style="display: none;"> <button id="exportContentButtonMobileSidebar" class="w-full flex items-center space-x-3 p-3 rounded-lg text-sm text-gray-300 hover:bg-blue-700/30 transition-colors duration-200">
                     <i class="fas fa-file-export fa-fw text-lg sidebar-icon"></i>
                     <span class="text-sm">JSON 내보내기</span>
                 </button>
@@ -1204,8 +1264,7 @@
     <main id="mainContentArea" class="flex-1 md:ml-64 h-screen flex flex-col">
         <header class="p-4 glassmorphism sticky top-0 z-20 flex-shrink-0">
             <div class="flex items-center justify-between">
-                <button id="mobileMenuButton" class="text-gray-300 hover:text-white md:hidden mr-3">
-                    <i class="fas fa-bars text-xl"></i>
+                <button id="mobileMenuButton" class="text-gray-300 hover:text-white md:hidden mr-3 p-2"> <i class="fas fa-bars text-xl"></i>
                 </button>
                 <div class="flex-grow">
                      <span id="adminUserIdDisplay" class="text-xs text-red-400 hidden"></span> </div>
@@ -1219,8 +1278,7 @@
         </header>
 
         <div class="flex-grow p-4 sm:p-6 overflow-y-auto scrollable-content pb-6">
-            <section id="home" class="content-section active">
-                <div class="mb-8 sm:mb-10">
+            <section id="home" class="content-section"> <div class="mb-8 sm:mb-10">
                     <h3 class="text-xl sm:text-2xl font-medium mb-3 sm:mb-4 flex items-center"><i class="fas fa-chart-line mr-2 neon-accent"></i>AION 차트 <span class="text-xs sm:text-sm text-gray-400 ml-2">(조회수 TOP 10)</span></h3>
                     <div id="aionChartContainer" class="grid grid-cols-2 gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 sm:gap-3">
                         <p id="aionChartPlaceholder" class="text-gray-400 col-span-full text-sm">아직 차트에 표시할 콘텐츠가 없습니다. 영상을 시청하여 조회수를 올려보세요!</p>
@@ -1228,13 +1286,13 @@
                 </div>
                 <div class="mb-8 sm:mb-10">
                     <h3 class="text-xl sm:text-2xl font-medium mb-3 sm:mb-4 flex items-center"><i class="fas fa-star mr-2 neon-accent"></i>추천 음악</h3>
-                    <div id="recommendedMusicContainer" class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 sm:gap-3">
+                    <div id="recommendedMusicContainer" class="grid grid-cols-2 gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 sm:gap-3">
                          <p id="recommendedMusicPlaceholder" class="text-gray-400 col-span-full text-sm">추천된 음악이 없습니다.</p>
                     </div>
                 </div>
                 <div class="mb-8 sm:mb-10">
                     <h3 class="text-xl sm:text-2xl font-medium mb-3 sm:mb-4 flex items-center"><i class="fas fa-music mr-2 neon-accent"></i>새로운 AI 음악 & MV</h3>
-                    <div id="newUploadsContainer" class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 sm:gap-3">
+                    <div id="newUploadsContainer" class="grid grid-cols-2 gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 sm:gap-3">
                         <p id="newUploadsPlaceholder" class="text-gray-400 col-span-full text-sm">음악이나 뮤직비디오가 여기에 표시됩니다.</p>
                     </div>
                 </div>
@@ -1339,7 +1397,7 @@
             </div>
         </div>
     </div>
-
+    
     <div id="toastMessage" class="toast-message"></div>
 
 </body>
