@@ -26,7 +26,11 @@
         // ===============================================================================================
         const ADMIN_UID = "THIS_IS_NOT_AN_ADMIN_UID_FOR_USER_VERSION"; 
 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'aion-user-app'; 
+        // appId를 관리자용 앱과 동일하게 설정 (예: 'aion-admin-app' 또는 공통으로 사용할 ID)
+        // Canvas 환경에서 __app_id가 제공된다면 해당 값을 우선 사용합니다.
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'aion-admin-app'; 
+        console.log("Using appId (User):", appId);
+
 
         let firebaseConfig = {
             apiKey: "AIzaSyCAfrCXrHfYWUrvZ-SKqocCXu5QNCbFRH8", 
@@ -35,7 +39,7 @@
             projectId: "aion-18c27",
             storageBucket: "aion-18c27.appspot.com",
             messagingSenderId: "496946227122",
-            appId: "1:496946227122:web:3c7efdd7d014743f3126ab",
+            appId: "1:496946227122:web:3c7efdd7d014743f3126ab", // 이 값은 Firebase 프로젝트 설정의 앱 ID와 일치해야 합니다.
             measurementId: "G-K2F99M91CM"
         };
 
@@ -145,11 +149,13 @@
                 return;
             }
             console.log("Loading data for user (User):", userId);
+            console.log("Content items path (User):", getContentItemsCollectionPath()); // 경로 확인용 로그
 
             if (unsubscribeContentItems) unsubscribeContentItems();
             const contentItemsQuery = query(collection(db, getContentItemsCollectionPath()), orderBy('createdAt', 'desc'));
             unsubscribeContentItems = onSnapshot(contentItemsQuery, (qS) => {
                 allContentData = qS.docs.map(d => ({ ...d.data(), itemId: d.id }));
+                console.log("Content items loaded (User):", allContentData.length); // 로드된 아이템 수 로그
                 renderPageContent();
             }, (err) => { console.error("Error content items (User):", err); showToast('콘텐츠 로딩 실패', true); allContentData = []; renderPageContent(); });
 
@@ -192,6 +198,12 @@
         }
         function setInitialActiveSection() { 
             if (!desktopSidebar || !mobileSidebar) { initializeMenuElements(); if (!desktopSidebar || !mobileSidebar) return; } 
+            
+            document.querySelectorAll('.content-section').forEach(section => {
+                section.style.display = 'none';
+                section.classList.remove('active');
+            });
+
             const homeSection = document.getElementById('home'); 
             if (homeSection) { homeSection.classList.add('active'); homeSection.style.display = 'block'; } 
             
