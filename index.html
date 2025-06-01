@@ -26,8 +26,6 @@
         // ===============================================================================================
         const ADMIN_UID = "THIS_IS_NOT_AN_ADMIN_UID_FOR_USER_VERSION"; 
 
-        // appId를 관리자용 앱과 동일하게 설정 (예: 'aion-admin-app' 또는 공통으로 사용할 ID)
-        // Canvas 환경에서 __app_id가 제공된다면 해당 값을 우선 사용합니다.
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'aion-admin-app'; 
         console.log("Using appId (User):", appId);
 
@@ -39,7 +37,7 @@
             projectId: "aion-18c27",
             storageBucket: "aion-18c27.appspot.com",
             messagingSenderId: "496946227122",
-            appId: "1:496946227122:web:3c7efdd7d014743f3126ab", // 이 값은 Firebase 프로젝트 설정의 앱 ID와 일치해야 합니다.
+            appId: "1:496946227122:web:3c7efdd7d014743f3126ab", 
             measurementId: "G-K2F99M91CM"
         };
 
@@ -84,7 +82,7 @@
 
             if (currentUser) {
                 userId = currentUser.uid;
-                isAdminMode = (userId === ADMIN_UID); // 항상 false가 됨
+                isAdminMode = (userId === ADMIN_UID); 
             } else {
                 userId = null;
                 isAdminMode = false;
@@ -101,9 +99,11 @@
                 if (!currentUser && !(typeof __initial_auth_token !== 'undefined' && __initial_auth_token)) {
                     await attemptSignIn();
                 } else {
+                    // 사용자가 이미 있거나 __initial_auth_token이 있는 경우 바로 로직 초기화
                     await initializeAppLogic();
                 }
             } else if (userId !== previousUserId) {
+                // 사용자가 변경된 경우 (로그인/로그아웃) 데이터 및 UI 새로고침
                 loadAllDataAndRender();
             }
         });
@@ -111,23 +111,44 @@
         async function attemptSignIn() {
             console.log("Attempting sign-in (User)...");
             try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                // __initial_auth_token이 제공되고, 비어있지 않은 경우에만 커스텀 토큰 로그인 시도
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token && __initial_auth_token.trim() !== "") {
+                    console.log("Attempting sign in with custom token (User)...");
                     await signInWithCustomToken(auth, __initial_auth_token);
-                } else if (!auth.currentUser) {
-                    await signInAnonymously(auth);
+                } else {
+                    // 커스텀 토큰이 없거나 유효하지 않으면 익명 로그인 시도 (이미 로그인된 상태가 아니라면)
+                    if (!auth.currentUser) {
+                        console.log("No valid custom token provided or user not signed in. Attempting anonymous sign-in (User)...");
+                        await signInAnonymously(auth);
+                    } else {
+                        console.log("User already signed in or custom token not provided/valid. No sign-in attempt needed.");
+                    }
                 }
             } catch (error) {
-                console.error("Error during sign-in (User):", error);
-                showToast("로그인 중 오류 발생: " + error.message, true);
+                console.error("Error during sign-in attempt (User):", error);
+                // 커스텀 토큰 로그인 실패 또는 특정 관리자 제한 오류 시 익명 로그인으로 폴백
+                if (error.code === 'auth/invalid-custom-token' || error.code === 'auth/admin-restricted-operation') {
+                    console.warn("Custom token sign-in failed or restricted, attempting anonymous sign-in as fallback (User). Error code:", error.code);
+                    if (!auth.currentUser) { 
+                        try {
+                            await signInAnonymously(auth);
+                        } catch (anonError) {
+                            console.error("Error during fallback anonymous sign-in (User):", anonError);
+                            showToast("익명 로그인 실패: " + anonError.message, true);
+                        }
+                    }
+                } else {
+                     showToast("로그인 오류: " + error.message, true);
+                }
             }
         }
 
         async function initializeAppLogic() {
             console.log("Initializing app logic (User). User ID:", userId);
             setupEventListeners();
-            if (userId) { 
-                loadAllDataAndRender();
-            }
+            // onAuthStateChanged가 userId를 설정한 후 loadAllDataAndRender를 호출하거나,
+            // 여기서 직접 호출해도 loadAllDataAndRender 내부의 userId 체크로 안전합니다.
+            loadAllDataAndRender();
         }
         
         function setupAdminUI() { 
@@ -149,13 +170,13 @@
                 return;
             }
             console.log("Loading data for user (User):", userId);
-            console.log("Content items path (User):", getContentItemsCollectionPath()); // 경로 확인용 로그
+            console.log("Content items path (User):", getContentItemsCollectionPath()); 
 
             if (unsubscribeContentItems) unsubscribeContentItems();
             const contentItemsQuery = query(collection(db, getContentItemsCollectionPath()), orderBy('createdAt', 'desc'));
             unsubscribeContentItems = onSnapshot(contentItemsQuery, (qS) => {
                 allContentData = qS.docs.map(d => ({ ...d.data(), itemId: d.id }));
-                console.log("Content items loaded (User):", allContentData.length); // 로드된 아이템 수 로그
+                console.log("Content items loaded (User):", allContentData.length); 
                 renderPageContent();
             }, (err) => { console.error("Error content items (User):", err); showToast('콘텐츠 로딩 실패', true); allContentData = []; renderPageContent(); });
 
