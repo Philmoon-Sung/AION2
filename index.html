@@ -179,11 +179,45 @@
         const activeNavClass = 'neon-accent-bg';
         const inactiveNavClass = 'hover:bg-purple-700/30';
         let desktopSidebar, mobileSidebar, mobileSidebarOverlay, mobileMenuButton, closeMobileSidebarButton;
+        let aionLogoDesktop, aionLogoMobile; 
 
-        function initializeMenuElements() { desktopSidebar = document.getElementById('desktopSidebar'); mobileSidebar = document.getElementById('mobileSidebar'); mobileSidebarOverlay = document.getElementById('mobileSidebarOverlay'); mobileMenuButton = document.getElementById('mobileMenuButton'); closeMobileSidebarButton = document.getElementById('closeMobileSidebarButton'); }
-        function setInitialActiveSection() { if (!desktopSidebar || !mobileSidebar) { initializeMenuElements(); if (!desktopSidebar || !mobileSidebar) return; } const homeSection = document.getElementById('home'); if (homeSection) { homeSection.classList.add('active'); homeSection.style.display = 'block'; } const homeNavItemDesktop = desktopSidebar.querySelector('.nav-item[data-section="home"]'); const homeNavItemMobile = mobileSidebar.querySelector('.nav-item[data-section="home"]'); if (homeNavItemDesktop) { homeNavItemDesktop.classList.add(activeNavClass); homeNavItemDesktop.classList.remove(inactiveNavClass); } if (homeNavItemMobile) { homeNavItemMobile.classList.add(activeNavClass); homeNavItemMobile.classList.remove(inactiveNavClass); } }
-        function switchSection(sectionId) { document.querySelectorAll('.content-section').forEach(s => { s.classList.remove('active'); s.style.display = 'none'; }); const targetSection = document.getElementById(sectionId); if (targetSection) { targetSection.style.display = 'block'; targetSection.classList.add('active'); } updateNavActiveState(sectionId); }
-        function updateNavActiveState(activeSectionId) { if (!desktopSidebar || !mobileSidebar) return; document.querySelectorAll('#desktopSidebar .nav-item, #mobileSidebar .nav-item').forEach(nav => { nav.classList.remove(activeNavClass); nav.classList.add(inactiveNavClass); if (nav.dataset.section === activeSectionId) { nav.classList.add(activeNavClass); nav.classList.remove(inactiveNavClass); } }); }
+        function initializeMenuElements() { 
+            desktopSidebar = document.getElementById('desktopSidebar'); 
+            mobileSidebar = document.getElementById('mobileSidebar'); 
+            mobileSidebarOverlay = document.getElementById('mobileSidebarOverlay'); 
+            mobileMenuButton = document.getElementById('mobileMenuButton'); 
+            closeMobileSidebarButton = document.getElementById('closeMobileSidebarButton');
+            aionLogoDesktop = document.getElementById('aionLogoDesktop');
+            aionLogoMobile = document.getElementById('aionLogoMobile');
+        }
+        function setInitialActiveSection() { 
+            if (!desktopSidebar || !mobileSidebar) { initializeMenuElements(); if (!desktopSidebar || !mobileSidebar) return; } 
+            const homeSection = document.getElementById('home'); 
+            if (homeSection) { homeSection.classList.add('active'); homeSection.style.display = 'block'; } 
+            
+            document.querySelectorAll('#desktopSidebar .nav-item, #mobileSidebar .nav-item').forEach(nav => {
+                nav.classList.remove(activeNavClass);
+                nav.classList.add(inactiveNavClass);
+            });
+
+            const homeNavItemDesktop = desktopSidebar.querySelector('.nav-item[data-section="home"]'); 
+            const homeNavItemMobile = mobileSidebar.querySelector('.nav-item[data-section="home"]'); 
+            if (homeNavItemDesktop) { homeNavItemDesktop.classList.add(activeNavClass); homeNavItemDesktop.classList.remove(inactiveNavClass); } 
+            if (homeNavItemMobile) { homeNavItemMobile.classList.add(activeNavClass); homeNavItemMobile.classList.remove(inactiveNavClass); } 
+        }
+        function switchSection(sectionId) { 
+            document.querySelectorAll('.content-section').forEach(s => { s.classList.remove('active'); s.style.display = 'none'; }); 
+            const targetSection = document.getElementById(sectionId); 
+            if (targetSection) { targetSection.style.display = 'block'; targetSection.classList.add('active'); } 
+            updateNavActiveState(sectionId); 
+        }
+        function updateNavActiveState(activeSectionId) { 
+            if (!desktopSidebar || !mobileSidebar) return; 
+            document.querySelectorAll('#desktopSidebar .nav-item, #mobileSidebar .nav-item').forEach(nav => { 
+                nav.classList.remove(activeNavClass); nav.classList.add(inactiveNavClass); 
+                if (nav.dataset.section === activeSectionId) { nav.classList.add(activeNavClass); nav.classList.remove(inactiveNavClass); } 
+            }); 
+        }
         
         function setupEventListeners() {
             initializeMenuElements(); setInitialActiveSection();
@@ -194,6 +228,13 @@
             if (closeMobileSidebarButton) closeMobileSidebarButton.addEventListener('click', closeMobileSidebar);
             if (mobileSidebarOverlay) mobileSidebarOverlay.addEventListener('click', closeMobileSidebar);
             
+            if (aionLogoDesktop) {
+                aionLogoDesktop.addEventListener('click', (e) => { e.preventDefault(); switchSection('home'); });
+            }
+            if (aionLogoMobile) {
+                aionLogoMobile.addEventListener('click', (e) => { e.preventDefault(); switchSection('home'); closeMobileSidebar(); });
+            }
+
             const closeYoutubeModalButton = document.getElementById('closeYoutubeModalButton');
             if(closeYoutubeModalButton) closeYoutubeModalButton.addEventListener('click', closeYoutubeModal);
             const youtubeModalElement = document.getElementById('youtubeModal');
@@ -402,7 +443,7 @@
 <body class="flex h-screen overflow-hidden">
 
     <aside id="desktopSidebar" class="hidden md:flex w-64 glassmorphism p-4 space-y-8 flex-col items-start fixed inset-y-0 left-0 z-30">
-        <div class="flex items-center justify-start space-x-3 mb-10">
+        <div id="aionLogoDesktop" class="flex items-center justify-start space-x-3 mb-10 cursor-pointer">
             <svg class="h-14 w-14 neon-accent" viewBox="0 0 24 24" fill="currentColor"> <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
             </svg>
             <h1 class="text-4xl font-bold">AION</h1>
@@ -418,7 +459,7 @@
             <a href="#" class="nav-item flex items-center space-x-3 p-3 rounded-lg hover:bg-purple-700/30 transition-colors duration-200" data-section="upload" style="display: none;"> <i class="fas fa-upload fa-fw text-xl sidebar-icon"></i>
                 <span class="text-sm">업로드</span>
             </a>
-             </nav>
+        </nav>
         <div class="mt-auto w-full">
              <a href="#" class="nav-item flex items-center space-x-3 p-3 rounded-lg hover:bg-purple-700/30 transition-colors duration-200" data-section="profile">
                 <i class="fas fa-user-circle fa-fw text-xl sidebar-icon"></i>
@@ -430,7 +471,7 @@
     <div id="mobileSidebarOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden md:hidden"></div>
     <aside id="mobileSidebar" class="fixed inset-y-0 left-0 w-64 glassmorphism p-4 space-y-8 flex flex-col items-start z-40 transform -translate-x-full transition-transform duration-300 ease-in-out md:hidden">
         <div class="flex items-center justify-between w-full mb-6">
-            <div class="flex items-center space-x-3">
+            <div id="aionLogoMobile" class="flex items-center space-x-3 cursor-pointer">
                 <svg class="h-10 w-10 neon-accent" viewBox="0 0 24 24" fill="currentColor"> <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/> </svg>
                 <h1 class="text-2xl font-bold">AION</h1>
             </div>
@@ -449,7 +490,7 @@
             <a href="#" class="nav-item flex items-center space-x-3 p-3 rounded-lg hover:bg-purple-700/30 transition-colors duration-200" data-section="upload" style="display: none;"> <i class="fas fa-upload fa-fw text-lg sidebar-icon"></i>
                 <span class="text-sm">업로드</span>
             </a>
-            </nav>
+        </nav>
         <div class="mt-auto w-full">
              <a href="#" class="nav-item flex items-center space-x-3 p-3 rounded-lg hover:bg-purple-700/30 transition-colors duration-200" data-section="profile">
                 <i class="fas fa-user-circle fa-fw text-lg sidebar-icon"></i>
