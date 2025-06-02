@@ -58,7 +58,6 @@
         const getContentItemsCollectionPath = () => `/artifacts/${appId}/public/data/contentItems`;
         const getUserPlaylistsCollectionPath = (currentUserId) => `/artifacts/${appId}/users/${currentUserId}/playlists`; 
         const getUserLikedItemsCollectionPath = (currentUserId) => `/artifacts/${appId}/users/${currentUserId}/likedItems`;
-        // New paths for differentiated subscriptions
         const getUserSubscribedAiArtistsCollectionPath = (currentUserId) => `/artifacts/${appId}/users/${currentUserId}/subscribedAiArtists`;
         const getUserSubscribedSingersCollectionPath = (currentUserId) => `/artifacts/${appId}/users/${currentUserId}/subscribedSingers`;
 
@@ -66,14 +65,12 @@
         let allContentData = [];
         let userPlaylists = []; 
         let userLikedItemIds = new Set();
-        // Updated subscription sets
         let userSubscribedAiArtists = new Set();
         let userSubscribedSingers = new Set();
 
         let unsubscribeContentItems = null;
         let unsubscribePlaylists = null;
         let unsubscribeLikedItems = null;
-        // Updated subscription unsubscribers
         let unsubscribeSubscribedAiArtists = null;
         let unsubscribeSubscribedSingers = null;
 
@@ -108,7 +105,7 @@
             if (!appInitialized) {
                 appInitialized = true;
                 console.log("App initializing (Admin). Current user for init:", userId);
-                if (!currentUser && !(typeof __initial_auth_token !== 'undefined' && __initial_auth_token)) {
+                if (!currentUser && !(typeof __initial_auth_token !== 'undefined' && __initial_auth_token && __initial_auth_token.trim() !== "" )) {
                     console.log("No persisted user and no initial token, attempting sign-in (Admin).");
                     await attemptSignIn(); 
                 } else { 
@@ -118,6 +115,9 @@
             } else { 
                 if (userId !== previousUserId) { 
                     console.log("User changed (Admin). Reloading data and UI.");
+                    loadAllDataAndRender();
+                } else if (userId && !allContentData.length && appInitialized) { // Ensure app is initialized before trying to load
+                    console.log("User exists, app initialized, but data might not be loaded. Reloading data (Admin).");
                     loadAllDataAndRender();
                 }
             }
@@ -129,10 +129,11 @@
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token && __initial_auth_token.trim() !== "") {
                     console.log("Attempting sign in with custom token (Admin)...");
                     await signInWithCustomToken(auth, __initial_auth_token);
-                } else if (!auth.currentUser) { // Only attempt anonymous if no token and no user
+                } else if (!auth.currentUser) { 
                     console.log("No custom token and no current user. Admin app may require specific login or allow anonymous for viewing.");
-                    // For admin, anonymous sign-in might not be desired unless for a specific read-only view.
-                    // If admin actions require auth, this part might need adjustment or removal.
+                    // For admin, if no token, and not already signed in, it might not attempt anonymous sign-in
+                    // to prevent unauthorized access to admin functionalities if they are not guarded by isAdminMode.
+                    // If anonymous view is okay for admin page before admin login, uncomment below.
                     // await signInAnonymously(auth); 
                 }
             } catch (error) {
@@ -145,10 +146,10 @@
             console.log("initializeAppLogic running (Admin). User ID:", userId, "Admin:", isAdminMode);
             await handleInitialDataImport(); 
             setupEventListeners(); 
-            if (userId) { 
+            if (userId || isAdminMode) { // Load data if user is logged in OR if it's admin mode (even if userId is briefly null)
                 loadAllDataAndRender();
-            } else { // If no user after init (e.g. anonymous sign-in failed or not attempted)
-                 renderPageContent(); // Render empty state or placeholders
+            } else { 
+                 renderPageContent(); 
                  renderMyPlaylists();
                  renderLikedSongs();
                  renderSubscribedArtistsPage();
@@ -184,24 +185,8 @@
         }
 
         function loadAllDataAndRender() {
-            if (!userId && !isAdminMode) { // Allow data loading for admin even if userId is briefly null during auth flow, but ideally userId should be set.
-                console.log("loadAllDataAndRender (Admin): userId is null and not in admin override. Aborting data load.");
-                allContentData = []; userPlaylists = []; 
-                userLikedItemIds.clear(); 
-                userSubscribedAiArtists.clear(); 
-                userSubscribedSingers.clear();
-
-                if (unsubscribeContentItems) unsubscribeContentItems(); 
-                if (unsubscribePlaylists) unsubscribePlaylists(); 
-                if (unsubscribeLikedItems) unsubscribeLikedItems(); 
-                if (unsubscribeSubscribedAiArtists) unsubscribeSubscribedAiArtists();
-                if (unsubscribeSubscribedSingers) unsubscribeSubscribedSingers();
-
-                renderPageContent(); renderMyPlaylists(); renderLikedSongs(); renderSubscribedArtistsPage();
-                return; 
-            }
-
-            console.log("loadAllDataAndRender called (Admin). Current userId:", userId, "isAdminMode:", isAdminMode);
+            // Allow data loading for public content even if userId is null, but user-specific data needs userId.
+             console.log("loadAllDataAndRender called (Admin). Current userId:", userId, "isAdminMode:", isAdminMode);
 
             // Clear previous listeners
             if (unsubscribeContentItems) unsubscribeContentItems(); 
@@ -215,7 +200,8 @@
             unsubscribeContentItems = onSnapshot(contentItemsQuery, (querySnapshot) => {
                 allContentData = querySnapshot.docs.map(doc => ({ ...doc.data(), itemId: doc.id }));
                 console.log("Realtime: Content items updated (Admin). Count:", allContentData.length);
-                renderPageContent();
+                renderPageContent(); // This will re-render cards which might depend on user-specific data like likes/subscriptions
+                // If user-specific data (likes, subscriptions) is already loaded, re-rendering content items will use it.
             }, (error) => {
                 console.error("Error fetching content items (Admin): ", error);
                 showToast('콘텐츠 로딩 실패 (Admin): ' + error.code, true);
@@ -235,26 +221,27 @@
 
                 unsubscribeLikedItems = onSnapshot(collection(db, getUserLikedItemsCollectionPath(userId)), (qS) => {
                     userLikedItemIds.clear(); qS.forEach(d => userLikedItemIds.add(d.id));
-                    renderLikedSongs(); renderPageContent();
+                    renderLikedSongs(); 
+                    renderPageContent(); // Re-render content as like status might affect card display
                 }, (err) => { console.error("Error fetching liked items (Admin):", err); userLikedItemIds.clear(); renderLikedSongs(); });
 
-                // Load Subscribed AI Artists
                 unsubscribeSubscribedAiArtists = onSnapshot(collection(db, getUserSubscribedAiArtistsCollectionPath(userId)), (qS) => {
                     userSubscribedAiArtists.clear(); qS.forEach(d => userSubscribedAiArtists.add(d.id));
                     renderSubscribedArtistsPage(); 
                     renderPageContent(); 
                 }, (err) => { console.error("Error subscribed AI artists (Admin):", err); userSubscribedAiArtists.clear(); renderSubscribedArtistsPage(); });
 
-                // Load Subscribed Singers
                 unsubscribeSubscribedSingers = onSnapshot(collection(db, getUserSubscribedSingersCollectionPath(userId)), (qS) => {
                     userSubscribedSingers.clear(); qS.forEach(d => userSubscribedSingers.add(d.id));
                     renderSubscribedArtistsPage(); 
                     renderPageContent(); 
                 }, (err) => { console.error("Error subscribed singers (Admin):", err); userSubscribedSingers.clear(); renderSubscribedArtistsPage(); });
             } else {
-                 // If no userId, clear user-specific data displays
-                userPlaylists = []; userLikedItemIds.clear(); userSubscribedAiArtists.clear(); userSubscribedSingers.clear();
-                renderMyPlaylists(); renderLikedSongs(); renderSubscribedArtistsPage();
+                // If no userId, clear user-specific data and their displays
+                userPlaylists = []; renderMyPlaylists();
+                userLikedItemIds.clear(); renderLikedSongs();
+                userSubscribedAiArtists.clear(); userSubscribedSingers.clear(); renderSubscribedArtistsPage();
+                renderPageContent(); // Re-render content without user-specific highlights
             }
         }
         
@@ -301,7 +288,6 @@
         function switchSection(sectionId) { 
             if (sectionId === 'upload' && !isAdminMode) { 
                 showToast("관리자만 접근 가능합니다.", true); 
-                // switchSection('home'); // Avoid recursive call if already on home or if home is the target
                 if (document.getElementById('home') && !document.getElementById('home').classList.contains('active')) {
                     switchSection('home');
                 }
@@ -366,7 +352,7 @@
             if(editYoutubeLinkInput) editYoutubeLinkInput.addEventListener('input', updateEditThumbnailPreviewFromUrlInput);
             const cancelEditItemButtonInModal = document.getElementById('cancelEditItemButtonInModal'); 
             if(cancelEditItemButtonInModal) cancelEditItemButtonInModal.addEventListener('click', (e) => { e.preventDefault(); closeEditModal(); });
-            const cancelEditItemX = document.getElementById('cancelEditItem'); // X button in edit modal
+            const cancelEditItemX = document.getElementById('cancelEditItem'); 
             if(cancelEditItemX) cancelEditItemX.addEventListener('click', (e) => { e.preventDefault(); closeEditModal(); });
 
 
@@ -449,12 +435,12 @@
         function createContentItemHTML(itemData) {
             // Action buttons
             let actionButtonsHTML = `<div class="item-action-icon-wrapper">`;
-            if (userId && !userId.startsWith('guest-')) { // Common actions for logged-in users
+            if (userId && !userId.startsWith('guest-')) { 
                 actionButtonsHTML += `<i class="fas fa-list-ul item-action-icon add-to-playlist-icon" title="플레이리스트에 추가"></i>`;
                 const isLiked = userLikedItemIds.has(itemData.itemId);
                 actionButtonsHTML += `<i class="${isLiked ? 'fas fa-heart text-red-500' : 'far fa-heart'} item-action-icon like-item-button" title="${isLiked ? '좋아요 취소' : '좋아요'}"></i>`;
             }
-            if (isAdminMode) { // Admin specific actions
+            if (isAdminMode) { 
                 actionButtonsHTML += `<i class="fas fa-edit item-action-icon edit-item-button" title="수정"></i>`;
                 actionButtonsHTML += `<i class="fas fa-trash-alt item-action-icon delete-item-button" title="삭제"></i>`;
                 const isRecommended = itemData.isRecommended === true;
@@ -462,19 +448,16 @@
             }
             actionButtonsHTML += `</div>`;
 
-            // Thumbnail
             const imageClass = "h-full"; 
             const thumbnailHTML = `
                 <div class="thumbnail-image-container mb-1">
                     <img src="${getYouTubeThumbnailUrl(itemData.youtubeId)}" alt="${itemData.title}" class="thumbnail-image ${imageClass}" onerror="this.onerror=null;this.src='${thumbnailErrorPlaceholder}';">
                 </div>`;
 
-            // Title and Views
             const viewsHTML = `<span class="item-views text-xs text-yellow-300 ml-1">(<i class="fas fa-headphones-alt text-xs mr-1"></i>${itemData.views || 0})</span>`;
             const titleHTML = `<h4 class="item-title truncate">${itemData.title} ${viewsHTML}</h4>`;
 
-            // AI Music Artist
-            const aiArtistName = itemData.aiMusicArtist || itemData.aiTool || 'N/A'; // aiTool is a fallback
+            const aiArtistName = itemData.aiMusicArtist || itemData.aiTool || 'N/A'; 
             let aiArtistSubscribeIconHTML = '';
             if (userId && !userId.startsWith('guest-') && aiArtistName !== 'N/A') {
                 const isSubscribed = userSubscribedAiArtists.has(aiArtistName);
@@ -487,7 +470,6 @@
                     ${aiArtistSubscribeIconHTML}
                 </div>`;
             
-            // Singer
             const singerName = itemData.singerName || 'N/A'; 
             let singerSubscribeIconHTML = '';
             if (userId && !userId.startsWith('guest-') && singerName !== 'N/A') {
@@ -500,9 +482,6 @@
                     <p class="item-artist-name truncate">${singerName}</p>
                     ${singerSubscribeIconHTML}
                 </div>`;
-            
-            // Tags are removed from display as per request
-            // const tagsHTML = ''; 
 
             return `
                 ${actionButtonsHTML}
@@ -555,10 +534,10 @@
             const title = document.getElementById('uploadTitle').value.trim();
             const youtubeLink = document.getElementById('uploadYoutubeLink').value.trim();
             const contentType = document.getElementById('uploadContentType').value;
-            const tags = document.getElementById('uploadTags').value.trim(); // Keep tags for data, just not displayed on card
-            const genre = document.getElementById('uploadGenre').value.trim(); // Keep for data
-            const mood = document.getElementById('uploadMood').value.trim();   // Keep for data
-            const isInstrumental = document.getElementById('uploadIsInstrumental').checked; // Keep for data
+            const tags = document.getElementById('uploadTags').value.trim(); 
+            const genre = document.getElementById('uploadGenre').value.trim(); 
+            const mood = document.getElementById('uploadMood').value.trim();   
+            const isInstrumental = document.getElementById('uploadIsInstrumental').checked; 
             const aiMusicArtist = document.getElementById('uploadAiMusicArtist')?.value.trim();
             const singerName = document.getElementById('uploadSingerName')?.value.trim(); 
             const aiTool = document.getElementById('uploadAiTool')?.value.trim();
@@ -572,23 +551,16 @@
 
             const newItemData = {
                 title, youtubeId, contentType, 
-                tags: tags || null, 
-                genre: genre || null, 
-                mood: mood || null, 
+                tags: tags || deleteField(), // Use deleteField if empty
+                genre: genre || deleteField(), 
+                mood: mood || deleteField(),   
                 isInstrumental,
-                aiMusicArtist: (contentType === 'ai-music' || contentType === 'ai-mv') ? (aiMusicArtist || null) : null,
-                singerName: singerName || null, 
-                aiTool: contentType === 'ai-mv' ? (aiTool || null) : null, 
+                aiMusicArtist: (contentType === 'ai-music' || contentType === 'ai-mv') ? (aiMusicArtist || deleteField()) : deleteField(),
+                singerName: singerName || deleteField(), 
+                aiTool: contentType === 'ai-mv' ? (aiTool || deleteField()) : deleteField(), 
                 views: 0, isRecommended: false, createdAt: serverTimestamp(), uploaderId: userId
             };
             
-            Object.keys(newItemData).forEach(key => { // Remove empty/null fields before saving
-                if (newItemData[key] === null || newItemData[key] === undefined || newItemData[key] === '') {
-                     newItemData[key] = deleteField(); // Use Firestore's deleteField()
-                }
-            });
-
-
             try {
                 await addDoc(collection(db, getContentItemsCollectionPath()), newItemData);
                 showToast("콘텐츠가 성공적으로 업로드되었습니다!");
@@ -608,10 +580,10 @@
 
             const title = document.getElementById('editTitle').value.trim();
             const youtubeLink = document.getElementById('editYoutubeLink').value.trim();
-            const tags = document.getElementById('editTags').value.trim(); // Keep for data
-            const genre = document.getElementById('editGenre').value.trim(); // Keep for data
-            const mood = document.getElementById('editMood').value.trim();   // Keep for data
-            const isInstrumental = document.getElementById('editIsInstrumental').checked; // Keep for data
+            const tags = document.getElementById('editTags').value.trim(); 
+            const genre = document.getElementById('editGenre').value.trim(); 
+            const mood = document.getElementById('editMood').value.trim();   
+            const isInstrumental = document.getElementById('editIsInstrumental').checked; 
             const aiMusicArtist = document.getElementById('editAiMusicArtist')?.value.trim();
             const singerName = document.getElementById('editSingerName')?.value.trim(); 
             const aiTool = document.getElementById('editAiTool')?.value.trim();
@@ -627,16 +599,13 @@
                 title, youtubeId, 
                 tags: tags || deleteField(), 
                 genre: genre || deleteField(), 
-                mood: mood || deleteField(), 
+                mood: mood || deleteField(),   
                 isInstrumental,
                 aiMusicArtist: (itemToEdit.contentType === 'ai-music' || itemToEdit.contentType === 'ai-mv') ? (aiMusicArtist || deleteField()) : deleteField(),
                 singerName: singerName || deleteField(),
                 aiTool: itemToEdit.contentType === 'ai-mv' ? (aiTool || deleteField()) : deleteField(),
             };
             
-            // Firestore's deleteField() handles removal of fields if values are empty/null
-            // No need for explicit Object.keys loop here if using deleteField() directly
-
             try {
                 const itemRef = doc(db, getContentItemsCollectionPath(), currentEditingItemId);
                 await updateDoc(itemRef, updatedItemData);
@@ -699,7 +668,7 @@
 
         function openYoutubeModal(youtubeId, itemId) {
             if (youtubePlayer && youtubeModal) {
-                youtubePlayer.src = `https://www.youtube.com/embed/$${youtubeId}?autoplay=1&rel=0`; 
+                youtubePlayer.src = `https://www.youtube.com/embed/${youtubeId}?autoplay=1&rel=0`; 
                 youtubeModal.classList.remove('hidden'); youtubeModal.classList.add('flex');
                 incrementViewCount(itemId);
             }
@@ -714,8 +683,9 @@
 
             currentEditingItemId = itemId;
             document.getElementById('editTitle').value = item.title || '';
-            document.getElementById('editYoutubeLink').value = item.youtubeId ? `https://www.youtube.com/watch?v=$${item.youtubeId}` : ''; 
-            updateThumbnailPreview(item.youtubeId ? `https://www.youtube.com/watch?v=$${item.youtubeId}` : '', 'editThumbnailPreview');
+            // For edit form, display the watch URL for easier editing by admin
+            document.getElementById('editYoutubeLink').value = item.youtubeId ? `https://www.youtube.com/watch?v=drtQ0EwOOb8{item.youtubeId}` : ''; 
+            updateThumbnailPreview(item.youtubeId ? `https://www.youtube.com/watch?v=drtQ0EwOOb8{item.youtubeId}` : '', 'editThumbnailPreview');
             document.getElementById('editTags').value = item.tags || '';
             document.getElementById('editGenre').value = item.genre || '';
             document.getElementById('editMood').value = item.mood || '';
@@ -854,12 +824,11 @@
         }
 
         function renderSubscribedArtistsPage() { 
-            // Render AI Artists
-            if (subscribedAiArtistsContainer && subscribedAiArtistsPlaceholder) {
+            if (!subscribedAiArtistsContainer || !subscribedAiArtistsPlaceholder) {console.warn("AI Artist subscription container or placeholder not found.");}
+            else {
                 clearContainer(subscribedAiArtistsContainer, subscribedAiArtistsPlaceholder);
                 if (!userId || userId.startsWith('guest-')) {
-                    subscribedAiArtistsPlaceholder.classList.remove('hidden'); 
-                    subscribedAiArtistsPlaceholder.textContent = "구독한 AI 아티스트를 보려면 로그인해주세요.";
+                    subscribedAiArtistsPlaceholder.classList.remove('hidden'); subscribedAiArtistsPlaceholder.textContent = "구독한 AI 아티스트를 보려면 로그인해주세요.";
                 } else if (userSubscribedAiArtists.size > 0) {
                     subscribedAiArtistsPlaceholder.classList.add('hidden');
                     userSubscribedAiArtists.forEach(artistName => {
@@ -877,20 +846,15 @@
                         subscribedAiArtistsContainer.appendChild(div);
                     });
                 } else {
-                    subscribedAiArtistsPlaceholder.classList.remove('hidden'); 
-                    subscribedAiArtistsPlaceholder.textContent = "아직 구독한 AI 아티스트가 없습니다.";
+                    subscribedAiArtistsPlaceholder.classList.remove('hidden'); subscribedAiArtistsPlaceholder.textContent = "아직 구독한 AI 아티스트가 없습니다.";
                 }
-            } else {
-                console.warn("subscribedAiArtistsContainer or placeholder not found for rendering.");
             }
 
-
-            // Render Singers
-            if (subscribedSingersContainer && subscribedSingersPlaceholder) {
+            if (!subscribedSingersContainer || !subscribedSingersPlaceholder) { console.warn("Singer subscription container or placeholder not found."); }
+            else {
                 clearContainer(subscribedSingersContainer, subscribedSingersPlaceholder);
                 if (!userId || userId.startsWith('guest-')) {
-                    subscribedSingersPlaceholder.classList.remove('hidden'); 
-                    subscribedSingersPlaceholder.textContent = "구독한 가수를 보려면 로그인해주세요.";
+                    subscribedSingersPlaceholder.classList.remove('hidden'); subscribedSingersPlaceholder.textContent = "구독한 가수를 보려면 로그인해주세요.";
                 } else if (userSubscribedSingers.size > 0) {
                     subscribedSingersPlaceholder.classList.add('hidden');
                     userSubscribedSingers.forEach(singerName => {
@@ -908,11 +872,8 @@
                         subscribedSingersContainer.appendChild(div);
                     });
                 } else {
-                    subscribedSingersPlaceholder.classList.remove('hidden'); 
-                    subscribedSingersPlaceholder.textContent = "아직 구독한 가수가 없습니다.";
+                    subscribedSingersPlaceholder.classList.remove('hidden'); subscribedSingersPlaceholder.textContent = "아직 구독한 가수가 없습니다.";
                 }
-            } else {
-                 console.warn("subscribedSingersContainer or placeholder not found for rendering.");
             }
         }
 
@@ -1146,7 +1107,7 @@
                     </div>
                     <div>
                         <label for="uploadYoutubeLink" class="form-label">YouTube 링크 <span class="text-red-500">*</span></label>
-                        <input type="url" id="uploadYoutubeLink" name="uploadYoutubeLink" class="form-input" placeholder="https://www.youtube.com/watch?v=..." required>
+                        <input type="url" id="uploadYoutubeLink" name="uploadYoutubeLink" class="form-input" placeholder="https://www.youtube.com/watch?v=...`로 required>
                         <img id="thumbnailPreview" src="https://placehold.co/320x180/1A0933/4A2270?text=썸네일+미리보기" alt="YouTube Thumbnail Preview" class="mt-2 rounded-lg w-full max-w-xs aspect-video object-cover">
                     </div>
                      <div>
@@ -1238,7 +1199,7 @@
                 </div>
                 <div>
                     <label for="editYoutubeLink" class="form-label">YouTube 링크 <span class="text-red-500">*</span></label>
-                    <input type="url" id="editYoutubeLink" name="editYoutubeLink" class="form-input" required>
+                    <input type="url" id="editYoutubeLink" name="editYoutubeLink" class="form-input" placeholder="https://www.youtube.com/watch?v=drtQ0EwOOb8 required>
                     <img id="editThumbnailPreview" src="https://placehold.co/320x180/1A0933/4A2270?text=썸네일+미리보기" alt="Edit Thumbnail Preview" class="mt-2 rounded-lg w-full max-w-xs aspect-video object-cover">
                 </div>
                 <div id="editAiMusicArtistField" class="hidden">
