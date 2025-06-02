@@ -26,7 +26,7 @@
         // ===============================================================================================
         const ADMIN_UID = "THIS_IS_NOT_AN_ADMIN_UID_FOR_USER_VERSION"; 
 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'aion-admin-app'; 
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'aion-user-app'; // Changed default for clarity
         console.log("Using appId (User):", appId);
 
 
@@ -64,7 +64,6 @@
         const getContentItemsCollectionPath = () => `/artifacts/${appId}/public/data/contentItems`;
         const getUserPlaylistsCollectionPath = (currentUserId) => `/artifacts/${appId}/users/${currentUserId}/playlists`;
         const getUserLikedItemsCollectionPath = (currentUserId) => `/artifacts/${appId}/users/${currentUserId}/likedItems`;
-        // New paths for differentiated subscriptions
         const getUserSubscribedAiArtistsCollectionPath = (currentUserId) => `/artifacts/${appId}/users/${currentUserId}/subscribedAiArtists`;
         const getUserSubscribedSingersCollectionPath = (currentUserId) => `/artifacts/${appId}/users/${currentUserId}/subscribedSingers`;
 
@@ -72,8 +71,8 @@
         let allContentData = [];
         let userPlaylists = [];
         let userLikedItemIds = new Set();
-        let userSubscribedAiArtists = new Set(); // For AI Artists
-        let userSubscribedSingers = new Set();   // For Singers
+        let userSubscribedAiArtists = new Set(); 
+        let userSubscribedSingers = new Set();   
 
         let unsubscribeContentItems = null;
         let unsubscribePlaylists = null;
@@ -107,7 +106,9 @@
                 } else {
                     await initializeAppLogic();
                 }
-            } else if (userId !== previousUserId) {
+            } else if (userId !== previousUserId) { 
+                loadAllDataAndRender();
+            } else if (userId && !allContentData.length && appInitialized) { 
                 loadAllDataAndRender();
             }
         });
@@ -145,18 +146,17 @@
         }
         
         function setupAdminUI() { 
-            const adminElements = [
-                document.querySelector('#desktopSidebar .nav-item[data-section="upload"]'),
-                document.querySelector('#mobileSidebar .nav-item[data-section="upload"]'),
-                document.getElementById('upload'),
-                document.getElementById('adminUserIdDisplay')
-            ];
-            adminElements.forEach(el => { if (el) el.style.display = 'none'; });
+            const uploadNavItemDesktop = document.querySelector('#desktopSidebar .nav-item[data-section="upload"]');
+            const uploadNavItemMobile = document.querySelector('#mobileSidebar .nav-item[data-section="upload"]');
+            if (uploadNavItemDesktop) uploadNavItemDesktop.style.display = 'none';
+            if (uploadNavItemMobile) uploadNavItemMobile.style.display = 'none';
+            const adminDisplay = document.getElementById('adminUserIdDisplay');
+            if(adminDisplay) adminDisplay.classList.add('hidden');
         }
 
         function loadAllDataAndRender() {
             if (!userId) {
-                console.log("loadAllDataAndRender (User): userId is null. Aborting.");
+                console.log("loadAllDataAndRender (User): userId is null. Clearing data and rendering empty state.");
                 allContentData = []; userPlaylists = []; 
                 userLikedItemIds.clear(); 
                 userSubscribedAiArtists.clear(); 
@@ -168,11 +168,10 @@
                 if (unsubscribeSubscribedAiArtists) unsubscribeSubscribedAiArtists();
                 if (unsubscribeSubscribedSingers) unsubscribeSubscribedSingers();
 
-                renderPageContent(); renderMyPlaylists(); renderLikedSongs(); renderSubscribedArtistsPage(); // Changed from renderSubscribedArtists
+                renderPageContent(); renderMyPlaylists(); renderLikedSongs(); renderSubscribedArtistsPage(); 
                 return;
             }
             console.log("Loading data for user (User):", userId);
-            console.log("Content items path (User):", getContentItemsCollectionPath()); 
 
             if (unsubscribeContentItems) unsubscribeContentItems();
             const contentItemsQuery = query(collection(db, getContentItemsCollectionPath()), orderBy('createdAt', 'desc'));
@@ -195,23 +194,21 @@
             if (unsubscribeLikedItems) unsubscribeLikedItems();
             unsubscribeLikedItems = onSnapshot(collection(db, getUserLikedItemsCollectionPath(userId)), (qS) => {
                 userLikedItemIds.clear(); qS.forEach(d => userLikedItemIds.add(d.id));
-                renderLikedSongs(); renderPageContent(); // Re-render content if like status changes
+                renderLikedSongs(); renderPageContent(); 
             }, (err) => { console.error("Error liked items (User):", err); userLikedItemIds.clear(); renderLikedSongs(); });
 
-            // Load Subscribed AI Artists
             if (unsubscribeSubscribedAiArtists) unsubscribeSubscribedAiArtists();
             unsubscribeSubscribedAiArtists = onSnapshot(collection(db, getUserSubscribedAiArtistsCollectionPath(userId)), (qS) => {
-                userSubscribedAiArtists.clear(); qS.forEach(d => userSubscribedAiArtists.add(d.id)); // Assuming ID is the artist name
-                renderSubscribedArtistsPage(); // Update the dedicated page
-                renderPageContent(); // Re-render content as subscription status might affect card display
+                userSubscribedAiArtists.clear(); qS.forEach(d => userSubscribedAiArtists.add(d.id)); 
+                renderSubscribedArtistsPage(); 
+                renderPageContent(); 
             }, (err) => { console.error("Error subscribed AI artists (User):", err); userSubscribedAiArtists.clear(); renderSubscribedArtistsPage(); });
 
-            // Load Subscribed Singers
             if (unsubscribeSubscribedSingers) unsubscribeSubscribedSingers();
             unsubscribeSubscribedSingers = onSnapshot(collection(db, getUserSubscribedSingersCollectionPath(userId)), (qS) => {
-                userSubscribedSingers.clear(); qS.forEach(d => userSubscribedSingers.add(d.id)); // Assuming ID is the singer name
-                renderSubscribedArtistsPage(); // Update the dedicated page
-                renderPageContent(); // Re-render content
+                userSubscribedSingers.clear(); qS.forEach(d => userSubscribedSingers.add(d.id)); 
+                renderSubscribedArtistsPage(); 
+                renderPageContent(); 
             }, (err) => { console.error("Error subscribed singers (User):", err); userSubscribedSingers.clear(); renderSubscribedArtistsPage(); });
         }
         
@@ -319,7 +316,6 @@
         const recommendedMusicPlaceholder = document.getElementById('recommendedMusicPlaceholder');
 
         function createContentItemHTML(itemData) {
-            // Action buttons (like, add to playlist)
             let actionButtonsHTML = `<div class="item-action-icon-wrapper">`;
             if (userId && !userId.startsWith('guest-')) {
                 actionButtonsHTML += `<i class="fas fa-list-ul item-action-icon add-to-playlist-icon" title="플레이리스트에 추가"></i>`;
@@ -328,18 +324,15 @@
             }
             actionButtonsHTML += `</div>`;
 
-            // Thumbnail
-            const imageClass = "h-full"; // Ensure image fills its container
+            const imageClass = "h-full"; 
             const thumbnailHTML = `
                 <div class="thumbnail-image-container mb-1">
                     <img src="${getYouTubeThumbnailUrl(itemData.youtubeId)}" alt="${itemData.title}" class="thumbnail-image ${imageClass}" onerror="this.onerror=null;this.src='${thumbnailErrorPlaceholder}';">
                 </div>`;
 
-            // Title and Views
             const viewsHTML = `<span class="item-views text-xs text-yellow-300 ml-1">(<i class="fas fa-headphones-alt text-xs mr-1"></i>${itemData.views || 0})</span>`;
             const titleHTML = `<h4 class="item-title truncate">${itemData.title} ${viewsHTML}</h4>`;
 
-            // AI Music Artist
             const aiArtistName = itemData.aiMusicArtist || itemData.aiTool || 'N/A';
             let aiArtistSubscribeIconHTML = '';
             if (userId && !userId.startsWith('guest-') && aiArtistName !== 'N/A') {
@@ -353,8 +346,7 @@
                     ${aiArtistSubscribeIconHTML}
                 </div>`;
             
-            // Singer
-            const singerName = itemData.singerName || 'N/A'; // Assuming singerName field in itemData
+            const singerName = itemData.singerName || 'N/A'; 
             let singerSubscribeIconHTML = '';
             if (userId && !userId.startsWith('guest-') && singerName !== 'N/A') {
                 const isSubscribed = userSubscribedSingers.has(singerName);
@@ -363,11 +355,9 @@
             const singerHTML = `
                 <div class="item-artist-wrapper">
                     <span class="item-artist-label">Singer:</span>
-                    <p class="item-artist-name truncate">${singerName}</p> ${singerSubscribeIconHTML}
+                    <p class="item-artist-name truncate">${singerName}</p> 
+                    ${singerSubscribeIconHTML}
                 </div>`;
-
-            // Tags (genre, mood, instrumental) are no longer displayed here.
-            // const tagsHTML = ''; // Removed
 
             return `
                 ${actionButtonsHTML}
@@ -375,7 +365,6 @@
                 ${titleHTML}
                 ${aiArtistHTML}
                 ${singerHTML}`;
-                // ${tagsHTML} // Tags removed from display
         }
 
         function renderContentItem(itemData, container) { if (!container) return; const newItemDiv = document.createElement('div'); let itemClasses = 'youtube-playable glassmorphism p-2 sm:p-3 rounded-lg hover:shadow-lg hover:shadow-purple-500/30 transition-shadow cursor-pointer flex flex-col'; newItemDiv.className = itemClasses; newItemDiv.dataset.youtubeId = itemData.youtubeId; newItemDiv.dataset.itemId = itemData.itemId; newItemDiv.innerHTML = createContentItemHTML(itemData); if (container === newUploadsContainer) container.insertBefore(newItemDiv, container.firstChild); else container.appendChild(newItemDiv); }
@@ -406,7 +395,7 @@
             if (userId && !userId.startsWith('guest-') && targetSubscribeButton) { 
                 event.stopPropagation(); 
                 const artistName = targetSubscribeButton.dataset.artistName; 
-                const artistType = targetSubscribeButton.dataset.artistType; // 'aiArtist' or 'singer'
+                const artistType = targetSubscribeButton.dataset.artistType; 
                 if (artistName && artistName !== 'N/A' && artistType) {
                     await toggleSubscription(artistName, artistType);
                 }
@@ -414,7 +403,14 @@
             if (userId && !userId.startsWith('guest-') && targetLikeButton) { event.stopPropagation(); const itemIdToLike = targetLikeButton.closest('.youtube-playable')?.dataset.itemId; if(itemIdToLike) await toggleLikeItem(itemIdToLike); }
         }
 
-        function openYoutubeModal(youtubeId, itemId) { if (youtubePlayer && youtubeModal) { youtubePlayer.src = `https://www.youtube.com/embed/$${youtubeId}?autoplay=1&rel=0`; youtubeModal.classList.remove('hidden'); youtubeModal.classList.add('flex'); incrementViewCount(itemId); } }
+        function openYoutubeModal(youtubeId, itemId) { 
+            if (youtubePlayer && youtubeModal) { 
+                youtubePlayer.src = `https://www.youtube.com/embed/${youtubeId}?autoplay=1&rel=0`; // Corrected YouTube embed URL
+                youtubeModal.classList.remove('hidden'); 
+                youtubeModal.classList.add('flex'); 
+                incrementViewCount(itemId); 
+            } 
+        }
         function closeYoutubeModal() { if (youtubePlayer && youtubeModal) { youtubePlayer.src = ''; youtubeModal.classList.add('hidden'); youtubeModal.classList.remove('flex'); } }
         async function incrementViewCount(itemId) { if (!itemId || !userId) return; try { const itemRef = doc(db, getContentItemsCollectionPath(), itemId); await updateDoc(itemRef, { views: increment(1) }); console.log(`View count incremented for ${itemId}`); } catch (error) { console.error('Error incrementing view count:', error); } }
         
@@ -439,7 +435,7 @@
         function closeAddToPlaylistModal() { if (addToPlaylistModal) addToPlaylistModal.classList.add('hidden'); currentItemToAddToPlaylist = null; }
         async function handleConfirmAddToPlaylist() { if (!userId || userId.startsWith('guest-') || !currentItemToAddToPlaylist) { return; } const selectedRadio = playlistSelectionContainer.querySelector('input[name="playlistSelection"]:checked'); const newPlaylistName = newPlaylistNameInAddModalInput.value.trim(); let playlistNameForToast = ""; try { if (newPlaylistName) { await addDoc(collection(db, getUserPlaylistsCollectionPath(userId)), { name: newPlaylistName, items: [currentItemToAddToPlaylist], ownerId: userId, createdAt: serverTimestamp() }); playlistNameForToast = newPlaylistName; showToast(`'${playlistNameForToast}' 플레이리스트에 곡을 추가했습니다.`); } else if (selectedRadio) { const targetPlaylistId = selectedRadio.value; const playlist = userPlaylists.find(p => p.id === targetPlaylistId); if (playlist) { playlistNameForToast = playlist.name; if (!playlist.items.includes(currentItemToAddToPlaylist)) { const playlistRef = doc(db, getUserPlaylistsCollectionPath(userId), targetPlaylistId); await updateDoc(playlistRef, { items: [...playlist.items, currentItemToAddToPlaylist] }); showToast(`'${playlistNameForToast}' 플레이리스트에 곡을 추가했습니다.`); } else { showToast('이미 해당 플레이리스트에 있는 곡입니다.'); } } else { showToast('선택한 플레이리스트를 찾을 수 없습니다.', true); return; } } else { showToast('플레이리스트를 선택하거나 새 플레이리스트 이름을 입력해주세요.', true); return; } closeAddToPlaylistModal(); } catch (error) { console.error("Error adding to playlist:", error); showToast("플레이리스트 추가 오류.", true); } }
         function renderMyPlaylists() { if (!myPlaylistsContainer || !myPlaylistsPlaceholder) return; clearContainer(myPlaylistsContainer, myPlaylistsPlaceholder); if (!userId || userId.startsWith('guest-')) { if(myPlaylistsPlaceholder) { myPlaylistsPlaceholder.classList.remove('hidden'); myPlaylistsPlaceholder.textContent = "플레이리스트를 보려면 로그인해주세요."; } return; } if (userPlaylists.length > 0) { if(myPlaylistsPlaceholder) myPlaylistsPlaceholder.classList.add('hidden'); userPlaylists.forEach(pl => { const card = document.createElement('div'); card.className = 'playlist-card glassmorphism cursor-pointer'; card.dataset.playlistId = pl.id; const cover = document.createElement('div'); cover.className = 'playlist-cover'; if (pl.items && pl.items.length > 0) { const firstItemId = pl.items[0]; const firstItemData = allContentData.find(item => item.itemId === firstItemId); if (firstItemData && firstItemData.youtubeId) { const img = document.createElement('img'); img.src = getYouTubeThumbnailUrl(firstItemData.youtubeId); img.alt = pl.name; img.className = 'w-full h-full object-cover rounded-md'; img.onerror = function() { this.parentElement.innerHTML = '<i class="fas fa-music text-3xl"></i>'; }; cover.appendChild(img); } else { cover.innerHTML = '<i class="fas fa-music text-3xl"></i>'; } } else { cover.innerHTML = '<i class="fas fa-music text-3xl"></i>'; } const info = document.createElement('div'); info.className = 'flex-grow'; const name = document.createElement('h4'); name.className = 'font-semibold text-sm truncate'; name.textContent = pl.name; const count = document.createElement('p'); count.className = 'text-xs text-gray-400'; count.textContent = `${(pl.items || []).length}곡`; info.appendChild(name); info.appendChild(count); card.appendChild(cover); card.appendChild(info); card.addEventListener('click', () => openPlaylistDetailModal(pl.id)); myPlaylistsContainer.appendChild(card); }); } else { if(myPlaylistsPlaceholder) { myPlaylistsPlaceholder.classList.remove('hidden'); myPlaylistsPlaceholder.textContent = "만든 플레이리스트가 없습니다."; } } }
-        function openPlaylistDetailModal(playlistId) { currentViewingPlaylistId = playlistId; const playlist = userPlaylists.find(p => p.id === playlistId); if (!playlist || !playlistDetailModal || !playlistDetailNameElement || !playlistDetailItemsContainer || !playlistDetailPlaceholder) return; playlistDetailNameElement.textContent = playlist.name; clearContainer(playlistDetailItemsContainer, playlistDetailPlaceholder); if (playlist.items && playlist.items.length > 0) { if(playlistDetailPlaceholder) playlistDetailPlaceholder.classList.add('hidden'); playlist.items.forEach(itemId => { const itemData = allContentData.find(item => item.itemId === itemId); if (itemData) { const itemDiv = document.createElement('div'); itemDiv.className = 'glassmorphism p-3 rounded-lg flex items-center justify-between hover:bg-purple-700/20'; const img = document.createElement('img'); img.src = getYouTubeThumbnailUrl(itemData.youtubeId); img.alt = itemData.title; img.className = 'w-12 h-12 object-cover rounded-md mr-3 cursor-pointer'; img.onerror = function() { this.src = thumbnailErrorPlaceholder; }; img.addEventListener('click', (e) => { e.stopPropagation(); openYoutubeModal(itemData.youtubeId, itemData.itemId); }); const textInfoDiv = document.createElement('div'); textInfoDiv.className = 'flex-grow cursor-pointer'; textInfoDiv.addEventListener('click', (e) => { e.stopPropagation(); openYoutubeModal(itemData.youtubeId, itemData.itemId); }); const titleH5 = document.createElement('h5'); titleH5.className = 'item-title-small truncate'; titleH5.textContent = itemData.title; const artistP = document.createElement('p'); artistP.className = 'item-artist-small text-gray-400 truncate'; artistP.textContent = itemData.aiMusicArtist || itemData.aiTool || 'N/A'; textInfoDiv.appendChild(titleH5); textInfoDiv.appendChild(artistP); const actionButtonsContainer = document.createElement('div'); actionButtonsContainer.className = 'flex items-center'; const removeButton = document.createElement('button'); removeButton.className = 'p-2 text-red-400 hover:text-red-600 ml-2'; removeButton.innerHTML = '<i class="fas fa-times"></i>'; removeButton.title = "플레이리스트에서 삭제"; removeButton.addEventListener('click', async (e) => { e.stopPropagation(); await removeSongFromPlaylist(playlistId, itemData.itemId); }); actionButtonsContainer.appendChild(removeButton); itemDiv.appendChild(img); itemDiv.appendChild(textInfoDiv); itemDiv.appendChild(actionButtonsContainer); playlistDetailItemsContainer.appendChild(itemDiv); } }); } else { if(playlistDetailPlaceholder) { playlistDetailPlaceholder.classList.remove('hidden'); playlistDetailPlaceholder.textContent = "이 플레이리스트에 곡이 없습니다."; } } playlistDetailModal.classList.remove('hidden'); }
+        function openPlaylistDetailModal(playlistId) { currentViewingPlaylistId = playlistId; const playlist = userPlaylists.find(p => p.id === playlistId); if (!playlist || !playlistDetailModal || !playlistDetailNameElement || !playlistDetailItemsContainer || !playlistDetailPlaceholder) return; playlistDetailNameElement.textContent = playlist.name; clearContainer(playlistDetailItemsContainer, playlistDetailPlaceholder); if (playlist.items && playlist.items.length > 0) { if(playlistDetailPlaceholder) playlistDetailPlaceholder.classList.add('hidden'); playlist.items.forEach(itemId => { const itemData = allContentData.find(item => item.itemId === itemId); if (itemData) { const itemDiv = document.createElement('div'); itemDiv.className = 'glassmorphism p-3 rounded-lg flex items-center justify-between hover:bg-purple-700/20'; const img = document.createElement('img'); img.src = getYouTubeThumbnailUrl(itemData.youtubeId); img.alt = itemData.title; img.className = 'w-12 h-12 object-cover rounded-md mr-3 cursor-pointer'; img.onerror = function() { this.src = thumbnailErrorPlaceholder; }; img.addEventListener('click', (e) => { e.stopPropagation(); openYoutubeModal(itemData.youtubeId, itemData.itemId); }); const textInfoDiv = document.createElement('div'); textInfoDiv.className = 'flex-grow cursor-pointer'; textInfoDiv.addEventListener('click', (e) => { e.stopPropagation(); openYoutubeModal(itemData.youtubeId, itemData.itemId); }); const titleH5 = document.createElement('h5'); titleH5.className = 'item-title-small truncate'; titleH5.textContent = itemData.title; const artistP = document.createElement('p'); artistP.className = 'item-artist-small text-gray-400 truncate'; artistP.textContent = `${itemData.aiMusicArtist || 'N/A'}${itemData.singerName ? ' (Singer: ' + itemData.singerName + ')' : ''}`; textInfoDiv.appendChild(titleH5); textInfoDiv.appendChild(artistP); const actionButtonsContainer = document.createElement('div'); actionButtonsContainer.className = 'flex items-center'; const removeButton = document.createElement('button'); removeButton.className = 'p-2 text-red-400 hover:text-red-600 ml-2'; removeButton.innerHTML = '<i class="fas fa-times"></i>'; removeButton.title = "플레이리스트에서 삭제"; removeButton.addEventListener('click', async (e) => { e.stopPropagation(); await removeSongFromPlaylist(playlistId, itemData.itemId); }); actionButtonsContainer.appendChild(removeButton); itemDiv.appendChild(img); itemDiv.appendChild(textInfoDiv); itemDiv.appendChild(actionButtonsContainer); playlistDetailItemsContainer.appendChild(itemDiv); } }); } else { if(playlistDetailPlaceholder) { playlistDetailPlaceholder.classList.remove('hidden'); playlistDetailPlaceholder.textContent = "이 플레이리스트에 곡이 없습니다."; } } playlistDetailModal.classList.remove('hidden'); }
         function closePlaylistDetailModal() { if(playlistDetailModal) playlistDetailModal.classList.add('hidden'); currentViewingPlaylistId = null; }
         async function handleDeletePlaylist() { if (!userId || userId.startsWith('guest-') || !currentViewingPlaylistId) return; const playlist = userPlaylists.find(p => p.id === currentViewingPlaylistId); if (playlist) { const confirmDelete = await showConfirmationModal(`'${playlist.name}' 플레이리스트를 정말 삭제하시겠습니까?`); if (confirmDelete) { try { const playlistRef = doc(db, getUserPlaylistsCollectionPath(userId), currentViewingPlaylistId); await deleteDoc(playlistRef); closePlaylistDetailModal(); showToast('플레이리스트가 삭제되었습니다.'); } catch (error) { console.error("Error deleting playlist:", error); showToast("플레이리스트 삭제 오류.", true); } } } else { showToast("삭제할 플레이리스트를 찾을 수 없습니다.", true); } }
         function showConfirmationModal(message) { return new Promise((resolve) => { const existingModal = document.getElementById('customConfirmModal'); if (existingModal) existingModal.remove(); const modalHtml = ` <div id="customConfirmModal" class="modal fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[100]"> <div class="glassmorphism p-6 rounded-lg shadow-xl w-full max-w-sm mx-4"> <p class="text-white mb-4 text-sm">${message}</p> <div class="flex justify-end space-x-3"> <button id="customConfirmCancel" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg text-sm font-medium text-white">취소</button> <button id="customConfirmOk" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium text-white">삭제</button> </div> </div> </div> `; document.body.insertAdjacentHTML('beforeend', modalHtml); const confirmModal = document.getElementById('customConfirmModal'); const okButton = document.getElementById('customConfirmOk'); const cancelButton = document.getElementById('customConfirmCancel'); const removeModal = () => { if (confirmModal) confirmModal.remove(); }; okButton.onclick = () => { removeModal(); resolve(true); }; cancelButton.onclick = () => { removeModal(); resolve(false); }; }); }
@@ -475,14 +471,13 @@
                 return;
             }
 
-            const subRef = doc(db, collectionPathFunction(userId), artistName); // Use artistName as doc ID
+            const subRef = doc(db, collectionPathFunction(userId), artistName); 
 
             try {
                 if (userSet.has(artistName)) {
                     await deleteDoc(subRef);
                     showToast(`${typeName} '${artistName}' 구독을 취소했습니다.`);
                 } else {
-                    // For simplicity, using artistName as the ID. You might want a dedicated field in the doc.
                     await setDoc(subRef, { subscribedAt: serverTimestamp(), artistName: artistName });
                     showToast(`${typeName} '${artistName}'을(를) 구독했습니다.`);
                 }
@@ -493,54 +488,56 @@
         }
 
         function renderSubscribedArtistsPage() {
-            // Render AI Artists
-            if (!subscribedAiArtistsContainer || !subscribedAiArtistsPlaceholder) return;
-            clearContainer(subscribedAiArtistsContainer, subscribedAiArtistsPlaceholder);
-            if (!userId || userId.startsWith('guest-')) {
-                if(subscribedAiArtistsPlaceholder) { subscribedAiArtistsPlaceholder.classList.remove('hidden'); subscribedAiArtistsPlaceholder.textContent = "구독한 AI 아티스트를 보려면 로그인해주세요."; }
-            } else if (userSubscribedAiArtists.size > 0) {
-                if(subscribedAiArtistsPlaceholder) subscribedAiArtistsPlaceholder.classList.add('hidden');
-                userSubscribedAiArtists.forEach(artistName => {
-                    const div = document.createElement('div');
-                    div.className = 'flex items-center justify-between p-2 glassmorphism rounded-md hover:bg-purple-700/20';
-                    const nameSpan = document.createElement('span');
-                    nameSpan.className = 'text-sm truncate';
-                    nameSpan.textContent = artistName;
-                    const unsubscribeButton = document.createElement('button');
-                    unsubscribeButton.className = 'text-xs text-red-400 hover:text-red-600 px-2 py-1 rounded hover:bg-red-700/20 flex-shrink-0';
-                    unsubscribeButton.textContent = '구독 취소';
-                    unsubscribeButton.addEventListener('click', async (e) => { e.stopPropagation(); await toggleSubscription(artistName, 'aiArtist'); });
-                    div.appendChild(nameSpan);
-                    div.appendChild(unsubscribeButton);
-                    subscribedAiArtistsContainer.appendChild(div);
-                });
-            } else {
-                if(subscribedAiArtistsPlaceholder) { subscribedAiArtistsPlaceholder.classList.remove('hidden'); subscribedAiArtistsPlaceholder.textContent = "아직 구독한 AI 아티스트가 없습니다."; }
+            if (!subscribedAiArtistsContainer || !subscribedAiArtistsPlaceholder) {console.warn("AI Artist subscription container or placeholder not found.");}
+            else {
+                clearContainer(subscribedAiArtistsContainer, subscribedAiArtistsPlaceholder);
+                if (!userId || userId.startsWith('guest-')) {
+                    subscribedAiArtistsPlaceholder.classList.remove('hidden'); subscribedAiArtistsPlaceholder.textContent = "구독한 AI 아티스트를 보려면 로그인해주세요.";
+                } else if (userSubscribedAiArtists.size > 0) {
+                    subscribedAiArtistsPlaceholder.classList.add('hidden');
+                    userSubscribedAiArtists.forEach(artistName => {
+                        const div = document.createElement('div');
+                        div.className = 'flex items-center justify-between p-2 glassmorphism rounded-md hover:bg-purple-700/20';
+                        const nameSpan = document.createElement('span');
+                        nameSpan.className = 'text-sm truncate';
+                        nameSpan.textContent = artistName;
+                        const unsubscribeButton = document.createElement('button');
+                        unsubscribeButton.className = 'text-xs text-red-400 hover:text-red-600 px-2 py-1 rounded hover:bg-red-700/20 flex-shrink-0';
+                        unsubscribeButton.textContent = '구독 취소';
+                        unsubscribeButton.addEventListener('click', async (e) => { e.stopPropagation(); await toggleSubscription(artistName, 'aiArtist'); });
+                        div.appendChild(nameSpan);
+                        div.appendChild(unsubscribeButton);
+                        subscribedAiArtistsContainer.appendChild(div);
+                    });
+                } else {
+                    subscribedAiArtistsPlaceholder.classList.remove('hidden'); subscribedAiArtistsPlaceholder.textContent = "아직 구독한 AI 아티스트가 없습니다.";
+                }
             }
 
-            // Render Singers
-            if (!subscribedSingersContainer || !subscribedSingersPlaceholder) return;
-            clearContainer(subscribedSingersContainer, subscribedSingersPlaceholder);
-            if (!userId || userId.startsWith('guest-')) {
-                if(subscribedSingersPlaceholder) { subscribedSingersPlaceholder.classList.remove('hidden'); subscribedSingersPlaceholder.textContent = "구독한 가수를 보려면 로그인해주세요."; }
-            } else if (userSubscribedSingers.size > 0) {
-                if(subscribedSingersPlaceholder) subscribedSingersPlaceholder.classList.add('hidden');
-                userSubscribedSingers.forEach(singerName => {
-                    const div = document.createElement('div');
-                    div.className = 'flex items-center justify-between p-2 glassmorphism rounded-md hover:bg-purple-700/20';
-                    const nameSpan = document.createElement('span');
-                    nameSpan.className = 'text-sm truncate';
-                    nameSpan.textContent = singerName;
-                    const unsubscribeButton = document.createElement('button');
-                    unsubscribeButton.className = 'text-xs text-red-400 hover:text-red-600 px-2 py-1 rounded hover:bg-red-700/20 flex-shrink-0';
-                    unsubscribeButton.textContent = '구독 취소';
-                    unsubscribeButton.addEventListener('click', async (e) => { e.stopPropagation(); await toggleSubscription(singerName, 'singer'); });
-                    div.appendChild(nameSpan);
-                    div.appendChild(unsubscribeButton);
-                    subscribedSingersContainer.appendChild(div);
-                });
-            } else {
-                if(subscribedSingersPlaceholder) { subscribedSingersPlaceholder.classList.remove('hidden'); subscribedSingersPlaceholder.textContent = "아직 구독한 가수가 없습니다."; }
+            if (!subscribedSingersContainer || !subscribedSingersPlaceholder) { console.warn("Singer subscription container or placeholder not found."); }
+            else {
+                clearContainer(subscribedSingersContainer, subscribedSingersPlaceholder);
+                if (!userId || userId.startsWith('guest-')) {
+                    subscribedSingersPlaceholder.classList.remove('hidden'); subscribedSingersPlaceholder.textContent = "구독한 가수를 보려면 로그인해주세요.";
+                } else if (userSubscribedSingers.size > 0) {
+                    subscribedSingersPlaceholder.classList.add('hidden');
+                    userSubscribedSingers.forEach(singerName => {
+                        const div = document.createElement('div');
+                        div.className = 'flex items-center justify-between p-2 glassmorphism rounded-md hover:bg-purple-700/20';
+                        const nameSpan = document.createElement('span');
+                        nameSpan.className = 'text-sm truncate';
+                        nameSpan.textContent = singerName;
+                        const unsubscribeButton = document.createElement('button');
+                        unsubscribeButton.className = 'text-xs text-red-400 hover:text-red-600 px-2 py-1 rounded hover:bg-red-700/20 flex-shrink-0';
+                        unsubscribeButton.textContent = '구독 취소';
+                        unsubscribeButton.addEventListener('click', async (e) => { e.stopPropagation(); await toggleSubscription(singerName, 'singer'); });
+                        div.appendChild(nameSpan);
+                        div.appendChild(unsubscribeButton);
+                        subscribedSingersContainer.appendChild(div);
+                    });
+                } else {
+                    subscribedSingersPlaceholder.classList.remove('hidden'); subscribedSingersPlaceholder.textContent = "아직 구독한 가수가 없습니다.";
+                }
             }
         }
 
@@ -569,7 +566,7 @@
         .item-action-icon:hover { opacity: 1; transform: scale(1.15); }
         
         .like-item-button.fas.fa-heart, 
-        .subscribe-artist-icon.fas.fa-heart { color: #ef4444; } /* Red for liked/subscribed */
+        .subscribe-artist-icon.fas.fa-heart { color: #ef4444; } 
 
         .youtube-playable:hover .item-action-icon { opacity: 0.8; }
         .youtube-playable { position: relative; padding-top: 0.5rem; } 
@@ -577,14 +574,12 @@
         .toast-message { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); color: white; padding: 10px 20px; border-radius: 8px; z-index: 10000; opacity: 0; transition: opacity 0.5s ease-in-out; font-size: 0.9rem; box-shadow: 0 4px 15px rgba(138, 43, 226, 0.4); }
         .toast-message.show { opacity: 1; }
 
-        /* Adjusted font sizes for card content */
-        .item-title { font-size: 0.7rem; font-weight: 500; line-height: 1.3; margin-bottom: 0.2rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; min-height: calc(0.7rem * 1.3 * 2); /* for 2 lines */ } 
+        .item-title { font-size: 0.7rem; font-weight: 500; line-height: 1.3; margin-bottom: 0.2rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; min-height: calc(0.7rem * 1.3 * 2); } 
         .item-views { font-size: 0.6rem; }
         .item-artist-wrapper { display: flex; align-items: center; margin-bottom: 0.1rem; line-height: 1.2; }
         .item-artist-label { font-size: 0.6rem; color: #a0aec0; margin-right: 0.25rem; white-space: nowrap; }
         .item-artist-name { font-size: 0.6rem; color: #cbd5e0; }
         
-        /* Styles for smaller text in playlist details, etc. */
         .item-title-small { font-size: 0.875rem; font-weight: 500; }
         .item-artist-small { font-size: 0.75rem; }
 
@@ -733,11 +728,11 @@
                     </div>
                     <div>
                         <h3 class="text-lg sm:text-xl font-medium mb-3">구독한 AI 아티스트</h3>
-                        <div id="subscribedAiArtistsContainer" class="space-y-2">
-                             <p id="subscribedAiArtistsPlaceholder" class="text-gray-400 text-sm">아직 구독한 AI 아티스트가 없습니다.</p>
+                        <div id="subscribedAiArtistsContainer" class="space-y-2"> 
+                             <p id="subscribedAiArtistsPlaceholder" class="text-gray-400 text-sm">아직 구독한 AI 아티스트가 없습니다.</p> 
                         </div>
                     </div>
-                     <div>
+                     <div> 
                         <h3 class="text-lg sm:text-xl font-medium mb-3">구독한 가수</h3>
                         <div id="subscribedSingersContainer" class="space-y-2">
                              <p id="subscribedSingersPlaceholder" class="text-gray-400 text-sm">아직 구독한 가수가 없습니다.</p>
