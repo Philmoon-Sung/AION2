@@ -72,9 +72,8 @@
         let unsubscribeLikedItems = null;
         let unsubscribeSubscribedArtists = null;
         
-        // Global references for modal elements, to be updated in setupEventListeners if needed
-        let youtubeModal;
-        let youtubePlayer;
+        let youtubeModal; // Will be assigned in initializeAppLogic or setupEventListeners
+        let youtubePlayer; // Will be assigned in initializeAppLogic or setupEventListeners
 
 
         onAuthStateChanged(auth, async (currentUser) => {
@@ -101,7 +100,7 @@
                 }
             } else { 
                 if (userId !== previousUserId) { 
-                    await initializeAppLogic(); // Re-initialize for new user, including listeners
+                    await initializeAppLogic(); 
                 }
             }
         });
@@ -126,9 +125,8 @@
                 } catch (anonError) {
                     console.error("Error during anonymous sign-in (User):", anonError);
                     showToast("익명 로그인 실패: " + anonError.message, true);
-                    // If all sign-in fails, ensure basic UI listeners are up if not already
                     if (!document.body.dataset.listenersAttached) {
-                        setupEventListeners(); // Call to setup basic UI interaction listeners
+                        setupEventListeners();
                         document.body.dataset.listenersAttached = "true";
                     }
                     renderPageContent(); renderMyPlaylists(); renderLikedSongs(); renderSubscribedArtists();
@@ -144,7 +142,7 @@
             userPlaylists = []; userLikedItemIds.clear(); userSubscribedArtists.clear();
             
             setupEventListeners(); // Ensure listeners are set up/re-set correctly
-            document.body.dataset.listenersAttached = "true"; // Mark that base listeners are now attached
+            document.body.dataset.listenersAttached = "true";
 
             loadAllDataAndRender();
         }
@@ -162,7 +160,6 @@
         }
 
         function loadAllDataAndRender() {
-            // ... (데이터 로딩 로직은 이전과 동일하게 유지) ...
             console.log("Loading all data and rendering (User). Current userId:", userId);
             console.log("Attempting to load content from:", getContentItemsCollectionPath()); 
 
@@ -277,16 +274,6 @@
             }); 
         }
         
-        // Helper to re-attach event listeners by replacing the node
-        function reattachEventListener(elementId, eventType, handler) {
-            const element = document.getElementById(elementId);
-            if (!element) return null;
-            const newElement = element.cloneNode(true); // Clone the element
-            element.parentNode.replaceChild(newElement, element); // Replace old with new
-            newElement.addEventListener(eventType, handler); // Add listener to the new element
-            return newElement; // Return the new element
-        }
-
         function setupEventListeners() {
             initializeMenuElements(); 
             setInitialActiveSection();
@@ -294,71 +281,76 @@
             document.querySelectorAll('#desktopSidebar .nav-item, #mobileSidebar .nav-item').forEach(item => {
                 const sectionId = item.dataset.section;
                 if (sectionId === 'upload' && !isAdminMode) { item.style.display = 'none'; return; }
-                // Re-attach listener to avoid duplicates if setupEventListeners is called multiple times
+                
+                // Remove old listener if any, then add new one
                 const currentItem = document.querySelector(`#${item.closest('aside').id} .nav-item[data-section="${sectionId}"]`);
                 if (currentItem) {
-                    const newItem = currentItem.cloneNode(true);
-                    currentItem.parentNode.replaceChild(newItem, currentItem);
-                    newItem.addEventListener('click', (e) => { 
-                        e.preventDefault(); 
-                        switchSection(sectionId); 
-                        if (mobileSidebar && !mobileSidebar.classList.contains('-translate-x-full')) closeMobileSidebar(); 
-                    });
+                    if (currentItem.dataset.listenerAttached !== 'true') {
+                        currentItem.addEventListener('click', (e) => { 
+                            e.preventDefault(); 
+                            switchSection(sectionId); 
+                            if (mobileSidebar && !mobileSidebar.classList.contains('-translate-x-full')) closeMobileSidebar(); 
+                        });
+                        currentItem.dataset.listenerAttached = 'true';
+                    }
                 }
             });
         
-            mobileMenuButton = reattachEventListener('mobileMenuButton', 'click', openMobileSidebar);
-            closeMobileSidebarButton = reattachEventListener('closeMobileSidebarButton', 'click', closeMobileSidebar);
-            mobileSidebarOverlay = reattachEventListener('mobileSidebarOverlay', 'click', closeMobileSidebar);
-            aionLogoDesktop = reattachEventListener('aionLogoDesktop', 'click', (e) => { e.preventDefault(); switchSection('home'); });
-            aionLogoMobile = reattachEventListener('aionLogoMobile', 'click', (e) => { e.preventDefault(); switchSection('home'); closeMobileSidebar(); });
+            // For buttons that are always present, ensure listener is attached once
+            const attachOnce = (elementId, eventType, handler) => {
+                const element = document.getElementById(elementId);
+                if (element && !element.dataset.listenerAttached) {
+                    element.addEventListener(eventType, handler);
+                    element.dataset.listenerAttached = 'true';
+                }
+                return element;
+            };
+
+            mobileMenuButton = attachOnce('mobileMenuButton', 'click', openMobileSidebar);
+            closeMobileSidebarButton = attachOnce('closeMobileSidebarButton', 'click', closeMobileSidebar);
+            mobileSidebarOverlay = attachOnce('mobileSidebarOverlay', 'click', closeMobileSidebar);
+            aionLogoDesktop = attachOnce('aionLogoDesktop', 'click', (e) => { e.preventDefault(); switchSection('home'); });
+            aionLogoMobile = attachOnce('aionLogoMobile', 'click', (e) => { e.preventDefault(); switchSection('home'); closeMobileSidebar(); });
         
-            // --- YouTube Modal Listeners 수정 ---
+            // --- YouTube Modal Listeners ---
             const closeBtn = document.getElementById('closeYoutubeModalButton');
-            if (closeBtn) {
-                // 이전 리스너 제거 (cloneNode 방식이 아니므로 수동 제거 또는 플래그 사용)
-                // 여기서는 간단히 플래그를 사용하여 중복 방지
-                if (!closeBtn.dataset.youtubeModalCloseListenerAttached) {
-                    const closeEventHandler = (event) => {
-                        event.preventDefault(); 
-                        event.stopPropagation(); 
-                        closeYoutubeModal();
-                    };
-                    closeBtn.addEventListener('click', closeEventHandler);
-                    // 모바일 환경에서 click 이벤트가 불안정할 경우 touchend를 고려할 수 있습니다.
-                    // closeBtn.addEventListener('touchend', closeEventHandler); 
-                    closeBtn.dataset.youtubeModalCloseListenerAttached = 'true';
-                    console.log("Event listener attached to closeYoutubeModalButton.");
-                }
-            } else {
-                console.warn("closeYoutubeModalButton not found!");
+            if (closeBtn && !closeBtn.dataset.youtubeModalCloseListener) {
+                const closeEventHandler = (event) => {
+                    event.preventDefault(); 
+                    event.stopPropagation(); 
+                    closeYoutubeModal();
+                };
+                closeBtn.addEventListener('click', closeEventHandler);
+                // For better mobile responsiveness, consider adding touchend as well
+                // closeBtn.addEventListener('touchend', closeEventHandler); 
+                closeBtn.dataset.youtubeModalCloseListener = 'true';
+                console.log("Event listener attached to closeYoutubeModalButton.");
             }
             
-            youtubeModal = document.getElementById('youtubeModal'); // 전역 변수 업데이트
-            if (youtubeModal) {
-                if (!youtubeModal.dataset.youtubeModalBgListenerAttached) {
-                    youtubeModal.addEventListener('click', (event) => { 
-                        if (event.target === youtubeModal) { 
-                            closeYoutubeModal(); 
-                        }
-                    });
-                    youtubeModal.dataset.youtubeModalBgListenerAttached = 'true';
-                    console.log("Event listener attached to youtubeModal background.");
-                }
+            youtubeModal = document.getElementById('youtubeModal'); 
+            if (youtubeModal && !youtubeModal.dataset.youtubeModalBgListener) {
+                youtubeModal.addEventListener('click', (event) => { 
+                    if (event.target === youtubeModal) { 
+                        closeYoutubeModal(); 
+                    }
+                });
+                youtubeModal.dataset.youtubeModalBgListener = 'true';
+                console.log("Event listener attached to youtubeModal background.");
             }
-            youtubePlayer = document.getElementById('youtubePlayer'); // 전역 변수 업데이트
+            youtubePlayer = document.getElementById('youtubePlayer'); 
             
-            // --- 나머지 모달 및 버튼 이벤트 리스너 (기존 reattachEventListener 방식 사용) ---
-            reattachEventListener('createPlaylistButton', 'click', () => openCreatePlaylistModal());
-            reattachEventListener('cancelCreatePlaylist', 'click', () => closeCreatePlaylistModal());
-            reattachEventListener('confirmCreatePlaylist', 'click', handleConfirmCreatePlaylist);
-            reattachEventListener('cancelAddToPlaylist', 'click', () => closeAddToPlaylistModal());
-            reattachEventListener('confirmAddToPlaylist', 'click', handleConfirmAddToPlaylist);
-            reattachEventListener('closePlaylistDetailModal', 'click', () => closePlaylistDetailModal());
-            reattachEventListener('deletePlaylistButton', 'click', handleDeletePlaylist);
+            attachOnce('createPlaylistButton', 'click', () => openCreatePlaylistModal());
+            attachOnce('cancelCreatePlaylist', 'click', () => closeCreatePlaylistModal());
+            attachOnce('confirmCreatePlaylist', 'click', handleConfirmCreatePlaylist);
+            attachOnce('cancelAddToPlaylist', 'click', () => closeAddToPlaylistModal());
+            attachOnce('confirmAddToPlaylist', 'click', handleConfirmAddToPlaylist);
+            attachOnce('closePlaylistDetailModal', 'click', () => closePlaylistDetailModal());
+            attachOnce('deletePlaylistButton', 'click', handleDeletePlaylist);
         
+            // Body click listener for content interactions (remove old one if it exists)
             document.body.removeEventListener('click', handleContentInteraction); 
             document.body.addEventListener('click', handleContentInteraction);
+            console.log("Core event listeners set up.");
         }
 
         function openMobileSidebar() { if (mobileSidebar && mobileSidebarOverlay) { mobileSidebar.classList.remove('-translate-x-full'); mobileSidebarOverlay.classList.remove('hidden'); } }
@@ -427,7 +419,6 @@
         }
 
         function openYoutubeModal(youtubeId, itemId) { 
-            // Ensure global vars are up-to-date or re-fetch here
             youtubeModal = document.getElementById('youtubeModal'); 
             youtubePlayer = document.getElementById('youtubePlayer');
             if (youtubePlayer && youtubeModal) { 
@@ -438,8 +429,8 @@
             } 
         }
         function closeYoutubeModal() { 
-            const currentModal = document.getElementById('youtubeModal'); // Always get fresh reference
-            const currentPlayer = document.getElementById('youtubePlayer'); // Always get fresh reference
+            const currentModal = document.getElementById('youtubeModal'); 
+            const currentPlayer = document.getElementById('youtubePlayer'); 
             if (currentPlayer && currentModal) { 
                 if (currentPlayer.src) { 
                     currentPlayer.src = ''; 
