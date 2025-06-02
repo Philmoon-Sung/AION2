@@ -103,7 +103,7 @@
 
             setupAdminUI(); 
             populateUploadFormOptions(); 
-            populateEditFormOptions(); // 수정 폼 옵션도 채우기
+            populateEditFormOptions(); 
 
             if (!appInitialized) {
                 appInitialized = true;
@@ -324,7 +324,6 @@
             const uploadContentTypeSelect = document.getElementById('uploadContentType');
             if (uploadContentTypeSelect) { uploadContentTypeSelect.addEventListener('change', toggleUploadFields); toggleUploadFields(); }
 
-            // Event listeners for new checkbox groups to update tags (UPLOAD FORM)
             document.getElementById('uploadThemesContainer')?.addEventListener('change', updateUploadTagsFromSelections);
             document.getElementById('uploadGenresContainer')?.addEventListener('change', updateUploadTagsFromSelections);
             document.getElementById('uploadMoodsContainer')?.addEventListener('change', updateUploadTagsFromSelections);
@@ -341,7 +340,6 @@
             if (editContentTypeSelect) { editContentTypeSelect.addEventListener('change', toggleEditFields); }
 
 
-            // Event listeners for new checkbox groups to update tags (EDIT FORM)
             document.getElementById('editThemesContainer')?.addEventListener('change', updateEditTagsFromSelections);
             document.getElementById('editGenresContainer')?.addEventListener('change', updateEditTagsFromSelections);
             document.getElementById('editMoodsContainer')?.addEventListener('change', updateEditTagsFromSelections);
@@ -456,7 +454,7 @@
             actionButtonsHTML += `</div>`;
 
             const imageClass = "h-full"; 
-            const artistDisplay = itemData.singerName || itemData.aiMusicArtist || itemData.aiTool || 'N/A'; // 가수 이름 우선 표시
+            const artistDisplay = itemData.singerName || itemData.aiMusicArtist || itemData.aiTool || 'N/A'; 
             let subscribeIconHTML = '';
             if (userId && !userId.startsWith('guest-') && artistDisplay !== 'N/A') {
                 const isSubscribed = userSubscribedArtists.has(artistDisplay);
@@ -530,7 +528,7 @@
 
             const isInstrumental = document.getElementById('uploadIsInstrumental').checked;
             const aiMusicArtist = document.getElementById('uploadAiMusicArtist')?.value.trim();
-            const singerName = document.getElementById('uploadSingerName')?.value.trim(); // 가수 이름 추가
+            const singerName = document.getElementById('uploadSingerName')?.value.trim(); 
             const aiTool = document.getElementById('uploadAiTool')?.value.trim();
 
             if (!title || !youtubeLink || !contentType) {
@@ -546,9 +544,9 @@
                 moods: selectedMoods,   
                 tags: manualTags.join(','), 
                 isInstrumental,
-                aiMusicArtist: contentType === 'ai-music' ? aiMusicArtist : null,
-                singerName: singerName || null, // 가수 이름 저장
-                aiTool: contentType === 'ai-mv' ? aiTool : null,
+                aiMusicArtist: (contentType === 'ai-music' && aiMusicArtist) ? aiMusicArtist : null,
+                singerName: (contentType === 'ai-music' || contentType === 'general-music') && singerName ? singerName : null,
+                aiTool: (contentType === 'ai-mv' && aiTool) ? aiTool : null,
                 views: 0, isRecommended: false, createdAt: serverTimestamp(), uploaderId: userId
             };
 
@@ -558,6 +556,7 @@
                 document.getElementById('uploadForm').reset();
                 updateThumbnailPreview('', 'thumbnailPreview'); 
                 updateUploadTagsFromSelections(); 
+                toggleUploadFields(); // Reset field visibility
                 switchSection('home'); 
             } catch (error) {
                 console.error("Error uploading content (Admin):", error);
@@ -584,7 +583,7 @@
             
             const isInstrumental = document.getElementById('editIsInstrumental').checked;
             const aiMusicArtist = document.getElementById('editAiMusicArtist')?.value.trim();
-            const singerName = document.getElementById('editSingerName')?.value.trim(); // 가수 이름 추가
+            const singerName = document.getElementById('editSingerName')?.value.trim(); 
             const aiTool = document.getElementById('editAiTool')?.value.trim();
             
             if (!title || !youtubeLink || !contentType) { showToast("제목, YouTube 링크, 콘텐츠 유형은 필수입니다.", true); return; }
@@ -601,11 +600,10 @@
                 moods: selectedMoods,
                 tags: manualTags.join(','),
                 isInstrumental,
-                aiMusicArtist: contentType === 'ai-music' ? aiMusicArtist : null,
-                singerName: singerName || null,
-                aiTool: contentType === 'ai-mv' ? aiTool : null,
-                // views, createdAt, uploaderId 등은 수정하지 않음 (필요시 추가)
-                isRecommended: itemToEdit.isRecommended || false // 기존 추천 상태 유지
+                aiMusicArtist: (contentType === 'ai-music' && aiMusicArtist) ? aiMusicArtist : null,
+                singerName: (contentType === 'ai-music' || contentType === 'general-music') && singerName ? singerName : null,
+                aiTool: (contentType === 'ai-mv' && aiTool) ? aiTool : null,
+                isRecommended: itemToEdit.isRecommended || false 
             };
 
             try {
@@ -681,16 +679,14 @@
             updateThumbnailPreview(item.youtubeId ? `https://www.youtube.com/watch?v=${item.youtubeId}` : '', 'editThumbnailPreview');
             
             document.getElementById('editContentType').value = item.contentType || '';
-            toggleEditFields(); // 콘텐츠 유형에 따라 필드 표시/숨김
+            toggleEditFields(); 
 
-            // Populate themes, genres, moods checkboxes
             populateCheckboxGroup('editThemesContainer', predefinedThemes, 'editTheme', item.themes || []);
             populateCheckboxGroup('editGenresContainer', predefinedGenres, 'editGenre', item.genres || []);
             populateCheckboxGroup('editMoodsContainer', predefinedMoods, 'editMood', item.moods || []);
             
-            // Populate tags (manual tags only)
-            document.getElementById('editTags').value = item.tags || ''; // item.tags should store only manual tags
-            updateEditTagsFromSelections(); // Update combined tags display based on selections and manual input
+            document.getElementById('editTags').value = item.tags || ''; 
+            updateEditTagsFromSelections(); 
 
             document.getElementById('editIsInstrumental').checked = item.isInstrumental || false;
             
@@ -709,8 +705,6 @@
                 try {
                     await deleteDoc(doc(db, getContentItemsCollectionPath(), itemIdToDelete));
                     showToast("콘텐츠가 삭제되었습니다.");
-                    // Firestore에서 삭제되면 onSnapshot이 자동으로 UI를 업데이트합니다.
-                    // 플레이리스트 내 아이템 ID 제거는 백엔드 함수 또는 관리자 측에서 추가 로직 필요
                 } catch (error) {
                     console.error("Error deleting content (Admin):", error);
                     showToast("삭제 중 오류 발생: " + error.message, true);
@@ -734,51 +728,41 @@
 
         function toggleUploadFields() {
             const contentType = document.getElementById('uploadContentType').value;
-            const musicFields = document.getElementById('aiMusicFields');
-            const mvFields = document.getElementById('aiMvFields');
-            const singerNameField = document.getElementById('singerNameFieldUpload'); // 업로드 폼용
+            const aiMusicArtistContainer = document.getElementById('uploadAiMusicArtistContainer');
+            const singerNameContainer = document.getElementById('uploadSingerNameContainer');
+            const aiToolContainer = document.getElementById('uploadAiToolContainer');
+
+            if(aiMusicArtistContainer) aiMusicArtistContainer.classList.add('hidden');
+            if(singerNameContainer) singerNameContainer.classList.add('hidden');
+            if(aiToolContainer) aiToolContainer.classList.add('hidden');
 
             if (contentType === 'ai-music') {
-                if(musicFields) musicFields.classList.remove('hidden');
-                if(singerNameField) singerNameField.classList.remove('hidden');
-                if(mvFields) mvFields.classList.add('hidden');
+                if(aiMusicArtistContainer) aiMusicArtistContainer.classList.remove('hidden');
+                if(singerNameContainer) singerNameContainer.classList.remove('hidden');
+            } else if (contentType === 'general-music') {
+                if(singerNameContainer) singerNameContainer.classList.remove('hidden');
             } else if (contentType === 'ai-mv') {
-                if(musicFields) musicFields.classList.add('hidden');
-                if(singerNameField) singerNameField.classList.add('hidden');
-                if(mvFields) mvFields.classList.remove('hidden');
-            } else if (contentType === 'general-music') { // 일반 음악
-                if(musicFields) musicFields.classList.add('hidden'); // AI 아티스트 필드 숨김
-                if(singerNameField) singerNameField.classList.remove('hidden'); // 가수 이름 필드 표시
-                if(mvFields) mvFields.classList.add('hidden');
-            } else { 
-                if(musicFields) musicFields.classList.add('hidden');
-                if(singerNameField) singerNameField.classList.add('hidden');
-                if(mvFields) mvFields.classList.add('hidden');
+                if(aiToolContainer) aiToolContainer.classList.remove('hidden');
             }
         }
 
         function toggleEditFields() {
             const contentType = document.getElementById('editContentType').value;
-            const musicFields = document.getElementById('editAiMusicArtistField');
-            const mvFields = document.getElementById('editAiToolField');
-            const singerNameField = document.getElementById('editSingerNameField'); // 수정 폼용
+            const aiMusicArtistContainer = document.getElementById('editAiMusicArtistContainer');
+            const singerNameContainer = document.getElementById('editSingerNameContainer');
+            const aiToolContainer = document.getElementById('editAiToolContainer');
+
+            if(aiMusicArtistContainer) aiMusicArtistContainer.classList.add('hidden');
+            if(singerNameContainer) singerNameContainer.classList.add('hidden');
+            if(aiToolContainer) aiToolContainer.classList.add('hidden');
 
             if (contentType === 'ai-music') {
-                if(musicFields) musicFields.classList.remove('hidden');
-                if(singerNameField) singerNameField.classList.remove('hidden');
-                if(mvFields) mvFields.classList.add('hidden');
-            } else if (contentType === 'ai-mv') {
-                if(musicFields) musicFields.classList.add('hidden');
-                if(singerNameField) singerNameField.classList.add('hidden');
-                if(mvFields) mvFields.classList.remove('hidden');
+                if(aiMusicArtistContainer) aiMusicArtistContainer.classList.remove('hidden');
+                if(singerNameContainer) singerNameContainer.classList.remove('hidden');
             } else if (contentType === 'general-music') {
-                if(musicFields) musicFields.classList.add('hidden');
-                if(singerNameField) singerNameField.classList.remove('hidden');
-                if(mvFields) mvFields.classList.add('hidden');
-            } else { 
-                if(musicFields) musicFields.classList.add('hidden');
-                if(singerNameField) singerNameField.classList.add('hidden');
-                if(mvFields) mvFields.classList.add('hidden');
+                if(singerNameContainer) singerNameContainer.classList.remove('hidden');
+            } else if (contentType === 'ai-mv') {
+                if(aiToolContainer) aiToolContainer.classList.remove('hidden');
             }
         }
         
@@ -1154,18 +1138,21 @@
                             <option value="general-mv">일반 뮤직비디오</option>
                         </select>
                     </div>
-                    <div id="aiMusicFields" class="hidden space-y-4">
+                    
+                    <div id="uploadAiMusicArtistContainer" class="hidden space-y-4">
                         <div>
                             <label for="uploadAiMusicArtist" class="form-label">AI 음악 아티스트/모델</label>
                             <input type="text" id="uploadAiMusicArtist" name="uploadAiMusicArtist" class="form-input" placeholder="예: Suno AI, Udio, AIVA">
                         </div>
                     </div>
-                    <div id="singerNameFieldUpload" class="hidden space-y-4"> <div>
+                    <div id="uploadSingerNameContainer" class="hidden space-y-4">
+                        <div>
                             <label for="uploadSingerName" class="form-label">가수 이름 (실제 가수)</label>
                             <input type="text" id="uploadSingerName" name="uploadSingerName" class="form-input" placeholder="예: 아이유, BTS">
                         </div>
                     </div>
-                     <div id="aiMvFields" class="hidden space-y-4">
+                    
+                    <div id="uploadAiToolContainer" class="hidden space-y-4">
                         <div>
                             <label for="uploadAiTool" class="form-label">AI MV 생성 도구</label>
                             <input type="text" id="uploadAiTool" name="uploadAiTool" class="form-input" placeholder="예: Runway Gen-2, Kaiber AI">
@@ -1257,23 +1244,27 @@
                         <option value="general-mv">일반 뮤직비디오</option>
                     </select>
                 </div>
-                <div id="editAiMusicArtistField" class="hidden space-y-4">
+
+                <div id="editAiMusicArtistContainer" class="hidden space-y-4">
                     <div>
                         <label for="editAiMusicArtist" class="form-label">AI 음악 아티스트/모델</label>
                         <input type="text" id="editAiMusicArtist" name="editAiMusicArtist" class="form-input">
                     </div>
                 </div>
-                <div id="editSingerNameField" class="hidden space-y-4"> <div>
+                <div id="editSingerNameContainer" class="hidden space-y-4">
+                    <div>
                         <label for="editSingerName" class="form-label">가수 이름 (실제 가수)</label>
                         <input type="text" id="editSingerName" name="editSingerName" class="form-input">
                     </div>
                 </div>
-                <div id="editAiToolField" class="hidden space-y-4">
+
+                <div id="editAiToolContainer" class="hidden space-y-4">
                     <div>
                         <label for="editAiTool" class="form-label">AI MV 생성 도구</label>
                         <input type="text" id="editAiTool" name="editAiTool" class="form-input">
                     </div>
                 </div>
+
                 <div>
                     <label for="editThemesContainer" class="form-label">주제 (다중 선택 가능)</label>
                     <div id="editThemesContainer" class="checkbox-group-container scrollable-content"></div>
