@@ -191,23 +191,23 @@
 
             // Upload Form Listeners
             document.getElementById('uploadForm')?.addEventListener('submit', handleUploadFormSubmit);
-            document.getElementById('uploadYoutubeLink')?.addEventListener('input', updateThumbnailPreviewFromUrlInput); // *** 수정된 부분: 썸네일 미리보기 업데이트 리스너 추가 ***
+            document.getElementById('uploadYoutubeLink')?.addEventListener('input', updateThumbnailPreviewFromUrlInput); 
             const uploadInputsToWatch = ['uploadYoutubeLink', 'uploadTitle', 'uploadContentType', 'uploadAiMusicArtist', 'uploadSingerName', 'uploadAiTool'];
             uploadInputsToWatch.forEach(id => document.getElementById(id)?.addEventListener('input', updateUploadTagsFromSelections));
             document.getElementById('uploadIsInstrumental')?.addEventListener('change', updateUploadTagsFromSelections);
             ['uploadThemesContainer', 'uploadGenresContainer', 'uploadMoodsContainer'].forEach(id => document.getElementById(id)?.addEventListener('change', updateUploadTagsFromSelections));
-            document.getElementById('uploadTags')?.addEventListener('input', () => updateUploadTagsFromSelections(true)); // Pass true for manual input
+            document.getElementById('uploadTags')?.addEventListener('input', () => updateUploadTagsFromSelections(true)); 
             document.getElementById('uploadContentType')?.addEventListener('change', toggleUploadFields);
-            toggleUploadFields(); // Initial call
+            toggleUploadFields(); 
 
             // Edit Form Listeners
             document.getElementById('editItemForm')?.addEventListener('submit', handleEditFormSubmit);
-            document.getElementById('editYoutubeLink')?.addEventListener('input', updateEditThumbnailPreviewFromUrlInput); // For edit form
+            document.getElementById('editYoutubeLink')?.addEventListener('input', updateEditThumbnailPreviewFromUrlInput); 
             const editInputsToWatch = ['editYoutubeLink', 'editTitle', 'editContentType', 'editAiMusicArtist', 'editSingerName', 'editAiTool'];
             editInputsToWatch.forEach(id => document.getElementById(id)?.addEventListener('input', updateEditTagsFromSelections));
             document.getElementById('editIsInstrumental')?.addEventListener('change', updateEditTagsFromSelections);
             ['editThemesContainer', 'editGenresContainer', 'editMoodsContainer'].forEach(id => document.getElementById(id)?.addEventListener('change', updateEditTagsFromSelections));
-            document.getElementById('editTags')?.addEventListener('input', () => updateEditTagsFromSelections(true)); // Pass true for manual input
+            document.getElementById('editTags')?.addEventListener('input', () => updateEditTagsFromSelections(true)); 
             document.getElementById('editContentType')?.addEventListener('change', toggleEditFields);
             document.getElementById('cancelEditItemButtonInModal')?.addEventListener('click', (e) => { e.preventDefault(); closeEditModal(); });
             
@@ -242,21 +242,26 @@
         const recommendedMusicContainer = document.getElementById('recommendedMusicContainer'), recommendedMusicPlaceholder = document.getElementById('recommendedMusicPlaceholder');
 
         function createContentItemHTML(itemData) {
-            const allDisplayTags = new Set();
-            if (itemData.title) allDisplayTags.add(itemData.title);
-            if (itemData.contentType) allDisplayTags.add(itemData.contentType);
-            if (itemData.aiMusicArtist) allDisplayTags.add(itemData.aiMusicArtist);
-            if (itemData.singerName) allDisplayTags.add(itemData.singerName);
-            if (itemData.aiTool) allDisplayTags.add(itemData.aiTool);
-            if (itemData.themes && Array.isArray(itemData.themes)) itemData.themes.forEach(t => allDisplayTags.add(t));
-            if (itemData.genres && Array.isArray(itemData.genres)) itemData.genres.forEach(g => allDisplayTags.add(g));
-            if (itemData.moods && Array.isArray(itemData.moods)) itemData.moods.forEach(m => allDisplayTags.add(m));
-            if (itemData.tags) { itemData.tags.split(',').map(t => t.trim()).filter(t => t).forEach(tag => allDisplayTags.add(tag));}
-            if (itemData.isInstrumental) allDisplayTags.add("Instrumental");
-            
-            let tagsHTML = Array.from(allDisplayTags).map(tag => `#${tag.trim()}`).join(' ');
-            if (typeof itemData.views === 'number') tagsHTML += ` <span class="text-yellow-300 ml-2"><i class="fas fa-eye text-xs"></i> ${itemData.views}</span>`;
+            // 제목과 조회수 함께 표시
+            let titleWithViewsHTML = `<h4 class="item-title truncate">${itemData.title || '제목 없음'}</h4>`;
+            if (typeof itemData.views === 'number') {
+                titleWithViewsHTML = `<div class="flex items-center justify-between"><h4 class="item-title truncate flex-grow">${itemData.title || '제목 없음'}</h4><span class="text-yellow-300 ml-1 text-xs whitespace-nowrap"><i class="fas fa-eye text-xs"></i> ${itemData.views}</span></div>`;
+            }
 
+            // 카드 하단에 표시될 태그 (주제, 장르, 분위기)
+            const categoryTagsArray = [];
+            if (itemData.themes && Array.isArray(itemData.themes) && itemData.themes.length > 0) {
+                itemData.themes.forEach(t => categoryTagsArray.push(`#${t.trim()}`));
+            }
+            if (itemData.genres && Array.isArray(itemData.genres) && itemData.genres.length > 0) {
+                itemData.genres.forEach(g => categoryTagsArray.push(`#${g.trim()}`));
+            }
+            if (itemData.moods && Array.isArray(itemData.moods) && itemData.moods.length > 0) {
+                itemData.moods.forEach(m => categoryTagsArray.push(`#${m.trim()}`));
+            }
+            const categoryTagsHTML = categoryTagsArray.join(' ');
+
+            // 액션 버튼 HTML
             let actionButtonsHTML = `<div class="item-action-icon-wrapper">`;
             if (userId && !userId.startsWith('guest-')) {
                 actionButtonsHTML += `<i class="fas fa-list-ul item-action-icon add-to-playlist-icon" title="플레이리스트에 추가"></i>`;
@@ -269,13 +274,16 @@
                 actionButtonsHTML += `<i class="fas fa-star item-action-icon recommend-checkbox-icon ${itemData.isRecommended ? 'text-yellow-400' : 'text-gray-400'}" title="${itemData.isRecommended ? '추천 해제' : '추천 설정'}"></i>`;
             }
             actionButtonsHTML += `</div>`;
+            
+            // 아티스트 정보 및 구독 버튼
             const artistDisplay = itemData.singerName || itemData.aiMusicArtist || itemData.aiTool || 'N/A';
             let subscribeIconHTML = '';
             if (userId && !userId.startsWith('guest-') && artistDisplay !== 'N/A') {
                 const isSubscribed = userSubscribedArtists.has(artistDisplay);
                 subscribeIconHTML = `<i class="${isSubscribed ? 'fas fa-heart text-red-500' : 'far fa-heart'} subscribe-artist-icon" data-artist-name="${artistDisplay}" title="${isSubscribed ? artistDisplay + ' 구독 취소' : artistDisplay + ' 구독'}"></i>`;
             }
-            return `${actionButtonsHTML}<div class="thumbnail-image-container mb-1"><img src="${getYouTubeThumbnailUrl(itemData.youtubeId)}" alt="${itemData.title}" class="thumbnail-image h-full" onerror="this.onerror=null;this.src='${thumbnailErrorPlaceholder}';"></div><h4 class="item-title truncate">${itemData.title}</h4><div class="item-artist-wrapper"><p class="item-artist text-gray-400 truncate">${artistDisplay}</p>${subscribeIconHTML}</div><span class="item-tags neon-accent">${tagsHTML}</span>`;
+            
+            return `${actionButtonsHTML}<div class="thumbnail-image-container mb-1"><img src="${getYouTubeThumbnailUrl(itemData.youtubeId)}" alt="${itemData.title}" class="thumbnail-image h-full" onerror="this.onerror=null;this.src='${thumbnailErrorPlaceholder}';"></div>${titleWithViewsHTML}<div class="item-artist-wrapper"><p class="item-artist text-gray-400 truncate">${artistDisplay}</p>${subscribeIconHTML}</div><span class="item-tags neon-accent">${categoryTagsHTML}</span>`;
         }
 
         function renderContentItem(itemData, container) { 
@@ -511,7 +519,7 @@
             const getEl = (id) => document.getElementById(`${formPrefix}${id}`);
             
             const title = getEl('Title')?.value.trim(); if (title) autoGeneratedTags.add(title);
-            const contentType = getEl('ContentType')?.value; if (contentType) autoGeneratedTags.add(contentType);
+            const contentType = getEl('ContentType')?.value; if (contentType) autoGeneratedTagsSet.add(contentType);
             
             const aiArtistEl = getEl('AiMusicArtist'); const aiArtistContainer = getEl('AiMusicArtistContainer');
             if (aiArtistEl && aiArtistContainer && !aiArtistContainer.classList.contains('hidden')) { const val = aiArtistEl.value.trim(); if (val) autoGeneratedTags.add(val); }
