@@ -21,16 +21,19 @@
         let appInitialized = false;
         let ytPlayerInstance = null;
 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'aion-user-app'; 
+        // *** 수정된 부분: appId 기본값을 admin 페이지와 일치시킬 가능성이 높은 값으로 변경 ***
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'aion-admin-app'; 
+        console.log("Using appId:", appId);
+
 
         let firebaseConfig = { 
-            apiKey: "AIzaSyCAfrCXrHfYWUrvZ-SKqocCXu5QNCbFRH8",
+            apiKey: "AIzaSyCAfrCXrHfYWUrvZ-SKqocCXu5QNCbFRH8", // 보안에 유의하세요. 실제 배포 시 환경 변수 사용 권장
             authDomain: "aion-18c27.firebaseapp.com",
             databaseURL: "https://aion-18c27-default-rtdb.firebaseio.com",
             projectId: "aion-18c27",
             storageBucket: "aion-18c27.appspot.com",
             messagingSenderId: "496946227122",
-            appId: "1:496946227122:web:3c7efdd7d014743f3126ab",
+            appId: "1:496946227122:web:3c7efdd7d014743f3126ab", // Firebase Console의 앱 ID와 일치해야 함
             measurementId: "G-K2F99M91CM"
         };
 
@@ -99,17 +102,17 @@
                     console.log("No current user, attempting sign-in.");
                     await attemptSignIn(); 
                 } else { 
-                    console.log("Current user exists, initializing app logic.");
+                    // 사용자가 이미 있는 경우(세션 유지 등), 바로 로직 실행
+                    console.log("Current user exists, initializing app logic directly.");
                     await initializeAppLogic(); 
                 }
             } else if (userId !== previousUserId) { 
-                console.log("User changed, reloading all data.");
-                loadAllDataAndRender();
-            } else if (userId && previousUserId === userId) {
-                // User is the same, but auth state might have resolved (e.g., from null to anonymous)
-                // This ensures data loads if attemptSignIn was called and then onAuthStateChanged fires again for the same anonymous user
-                console.log("Auth state resolved for the same user, ensuring data is loaded.");
-                loadAllDataAndRender();
+                console.log("User changed (login/logout), reloading all data.");
+                loadAllDataAndRender(); // 사용자 변경 시 데이터 다시 로드
+            } else if (currentUser && !userId) { 
+                // 이 경우는 onAuthStateChanged가 signInAnonymously 직후에 다시 호출될 때 해당될 수 있음
+                console.log("Auth state resolved to a user, initializing app logic.");
+                await initializeAppLogic();
             }
         });
 
@@ -119,7 +122,7 @@
                      console.log("Attempting anonymous sign-in...");
                      await signInAnonymously(auth); 
                      console.log("Signed in anonymously for user app. UID:", auth.currentUser?.uid);
-                     // onAuthStateChanged will handle further logic including data loading
+                     // onAuthStateChanged가 호출되어 initializeAppLogic 또는 loadAllDataAndRender를 트리거할 것임
                 }
             } catch (error) { console.error("Error during anonymous sign-in (User):", error); showToast("로그인 오류: " + error.message, true); }
         }
@@ -127,53 +130,56 @@
         async function initializeAppLogic() {
             console.log("Initializing app logic (event listeners and data load).");
             setupEventListeners(); 
-            // Data loading is now primarily handled by onAuthStateChanged or explicit calls after sign-in
-            if (userId || (auth.currentUser && auth.currentUser.isAnonymous)) {
-                 console.log("User identified (or anonymous), proceeding to load data in initializeAppLogic.");
-                 loadAllDataAndRender();
-            } else {
-                console.log("No user (or not anonymous) in initializeAppLogic, clearing page content.");
-                clearPageContent();
-            }
+            loadAllDataAndRender(); // 인증 상태 변경 후 항상 데이터 로드 시도
         }
 
         function loadAllDataAndRender() {
-            console.log("loadAllDataAndRender called. Current User ID:", userId);
-            // 공개 콘텐츠는 항상 로드
+            console.log("loadAllDataAndRender called. Current User ID:", userId, "Current auth user:", auth.currentUser?.uid);
+            
+            // 공개 콘텐츠 로드
             if (unsubscribeContentItems) unsubscribeContentItems(); 
-            console.log("Setting up onSnapshot for contentItems at path:", getContentItemsCollectionPath());
-            unsubscribeContentItems = onSnapshot(query(collection(db, getContentItemsCollectionPath()), orderBy('createdAt', 'desc')), (snap) => {
-                console.log("Content items snapshot received, docs count:", snap.docs.length); 
+            const contentPath = getContentItemsCollectionPath();
+            console.log("Setting up onSnapshot for contentItems at path:", contentPath);
+            unsubscribeContentItems = onSnapshot(query(collection(db, contentPath), orderBy('createdAt', 'desc')), (snap) => {
+                console.log(`Content items snapshot from ${contentPath} received, docs count:`, snap.docs.length); 
                 allContentData = snap.docs.map(d => ({ ...d.data(), itemId: d.id }));
                 console.log("Processed allContentData, count:", allContentData.length); 
                 renderPageContent();
-            }, (err) => { console.error("Error loading content items (User):", err); showToast('콘텐츠 로딩 실패: ' + err.message, true); });
+            }, (err) => { console.error(`Error loading content items from ${contentPath} (User):`, err); showToast('콘텐츠 로딩 실패: ' + err.message, true); });
 
+            // 사용자 특정 데이터 로드 (userId가 있을 때만)
             if (userId) { 
                 console.log("User specific data loading for UID:", userId);
+
                 if (unsubscribePlaylists) unsubscribePlaylists();
-                unsubscribePlaylists = onSnapshot(query(collection(db, getUserPlaylistsCollectionPath(userId)), orderBy('createdAt', 'desc')), (snap) => {
-                    console.log("Playlists snapshot received, docs count:", snap.docs.length);
+                const playlistsPath = getUserPlaylistsCollectionPath(userId);
+                console.log("Setting up onSnapshot for playlists at path:", playlistsPath);
+                unsubscribePlaylists = onSnapshot(query(collection(db, playlistsPath), orderBy('createdAt', 'desc')), (snap) => {
+                    console.log(`Playlists snapshot from ${playlistsPath} received, docs count:`, snap.docs.length);
                     userPlaylists = snap.docs.map(d => ({ ...d.data(), id: d.id })); 
                     renderMyPlaylists(); 
                     if (currentViewingPlaylistId && playlistDetailModal && !playlistDetailModal.classList.contains('hidden')) {
                         const p = userPlaylists.find(pl => pl.id === currentViewingPlaylistId); if (p) openPlaylistDetailModal(currentViewingPlaylistId); else closePlaylistDetailModal();
                     }
-                }, (err) => { console.error("Error loading playlists (User):", err); });
+                }, (err) => { console.error(`Error loading playlists from ${playlistsPath} (User):`, err); });
 
                 if (unsubscribeLikedItems) unsubscribeLikedItems();
-                unsubscribeLikedItems = onSnapshot(collection(db, getUserLikedItemsCollectionPath(userId)), (snap) => {
-                    console.log("Liked items snapshot received, docs count:", snap.docs.length);
+                const likedItemsPath = getUserLikedItemsCollectionPath(userId);
+                console.log("Setting up onSnapshot for likedItems at path:", likedItemsPath);
+                unsubscribeLikedItems = onSnapshot(collection(db, likedItemsPath), (snap) => {
+                    console.log(`Liked items snapshot from ${likedItemsPath} received, docs count:`, snap.docs.length);
                     userLikedItemIds.clear(); snap.forEach(d => userLikedItemIds.add(d.id)); 
                     renderLikedSongs(); 
-                }, (err) => { console.error("Error loading liked items (User):", err);});
+                }, (err) => { console.error(`Error loading liked items from ${likedItemsPath} (User):`, err);});
 
                 if (unsubscribeSubscribedArtists) unsubscribeSubscribedArtists();
-                unsubscribeSubscribedArtists = onSnapshot(collection(db, getUserSubscribedArtistsCollectionPath(userId)), (snap) => {
-                    console.log("Subscribed artists snapshot received, docs count:", snap.docs.length);
+                const subscribedArtistsPath = getUserSubscribedArtistsCollectionPath(userId);
+                console.log("Setting up onSnapshot for subscribedArtists at path:", subscribedArtistsPath);
+                unsubscribeSubscribedArtists = onSnapshot(collection(db, subscribedArtistsPath), (snap) => {
+                    console.log(`Subscribed artists snapshot from ${subscribedArtistsPath} received, docs count:`, snap.docs.length);
                     userSubscribedArtists.clear(); snap.forEach(d => userSubscribedArtists.add(d.id)); 
                     renderSubscribedArtists(); 
-                }, (err) => { console.error("Error loading subscribed artists (User):", err); });
+                }, (err) => { console.error(`Error loading subscribed artists from ${subscribedArtistsPath} (User):`, err); });
             } else { 
                 console.log("No userId, clearing user specific data and unsubscribing listeners.");
                 if (unsubscribePlaylists) { unsubscribePlaylists(); unsubscribePlaylists = null; }
@@ -878,3 +884,4 @@
 
 </body>
 </html>
+```
