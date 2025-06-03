@@ -199,6 +199,16 @@
             document.getElementById('uploadTags')?.addEventListener('input', () => updateUploadTagsFromSelections(true)); 
             document.getElementById('uploadContentType')?.addEventListener('change', toggleUploadFields);
             toggleUploadFields(); 
+            // *** 추가된 부분: 새 콘텐츠 업로드 폼의 취소 버튼 이벤트 리스너 ***
+            document.getElementById('cancelUploadButton')?.addEventListener('click', (e) => {
+                e.preventDefault();
+                document.getElementById('uploadForm').reset();
+                updateThumbnailPreview('', 'thumbnailPreview');
+                updateUploadTagsFromSelections(); // 태그 필드 초기화
+                toggleUploadFields(); // 콘텐츠 유형에 따른 필드 상태 초기화
+                switchSection('home');
+            });
+
 
             // Edit Form Listeners
             document.getElementById('editItemForm')?.addEventListener('submit', handleEditFormSubmit);
@@ -210,13 +220,11 @@
             document.getElementById('editTags')?.addEventListener('input', () => updateEditTagsFromSelections(true)); 
             document.getElementById('editContentType')?.addEventListener('change', toggleEditFields);
             
-            // *** 수정된 부분: 콘텐츠 수정 모달 닫기 버튼 이벤트 리스너 수정 ***
             document.getElementById('cancelEditItemButtonInModal')?.addEventListener('click', (e) => { 
                 e.preventDefault(); 
                 closeEditModal(); 
             });
-            // 콘텐츠 수정 모달 내의 하단 "취소" 버튼에 대한 이벤트 리스너 (ID가 다를 경우 대비)
-            const cancelEditButtonBottom = document.querySelector('#editItemForm #cancelEditItemButtonInModalClose'); // HTML에 있는 ID로 수정
+            const cancelEditButtonBottom = document.querySelector('#editItemForm #cancelEditItemButtonInModalClose'); 
             if (cancelEditButtonBottom) {
                  cancelEditButtonBottom.addEventListener('click', (e) => { e.preventDefault(); closeEditModal(); });
             }
@@ -285,7 +293,6 @@
             }
             actionButtonsHTML += `</div>`;
             
-            // *** 수정된 부분 시작: 아티스트 정보 및 개별 구독 버튼 생성 ***
             let artistsHTML = '';
             const createArtistHTML = (name, type) => {
                 if (!name || name === 'N/A') return '';
@@ -305,14 +312,13 @@
             if (itemData.aiMusicArtist && itemData.aiMusicArtist !== 'N/A') {
                  artistsHTML += createArtistHTML(itemData.aiMusicArtist, 'ai-artist');
             }
-            if (itemData.aiTool && itemData.aiTool !== 'N/A' && itemData.contentType === 'ai-mv') { // ai-mv일 때만 aiTool 표시
+            if (itemData.aiTool && itemData.aiTool !== 'N/A' && itemData.contentType === 'ai-mv') { 
                  artistsHTML += createArtistHTML(itemData.aiTool, 'ai-tool');
             }
             
-            if (!artistsHTML) { // 아무 아티스트 정보도 없을 경우
+            if (!artistsHTML) { 
                 artistsHTML = `<div class="item-artist-wrapper"><p class="item-artist text-gray-400 truncate">N/A</p></div>`;
             }
-            // *** 수정된 부분 끝 ***
             
             return `${actionButtonsHTML}<div class="thumbnail-image-container mb-1"><img src="${getYouTubeThumbnailUrl(itemData.youtubeId)}" alt="${itemData.title}" class="thumbnail-image h-full" onerror="this.onerror=null;this.src='${thumbnailErrorPlaceholder}';"></div>${titleWithViewsHTML}${artistsHTML}<span class="item-tags neon-accent">${categoryTagsHTML}</span>`;
         }
@@ -430,7 +436,7 @@
             const playableItem = target.closest('.youtube-playable');
             const actionMappings = {
                 '.add-to-playlist-icon': () => { if (!userId || userId.startsWith('guest-')) { showToast("로그인 필요", true); return; } currentItemToAddToPlaylist = playableItem?.dataset.itemId; if (currentItemToAddToPlaylist) openAddToPlaylistModal(); },
-                '.subscribe-artist-icon': async () => { // This will handle clicks on any subscribe icon
+                '.subscribe-artist-icon': async () => { 
                     if (!userId || userId.startsWith('guest-')) { showToast("로그인 필요", true); return; } 
                     const artistName = target.dataset.artistName; 
                     if (artistName && artistName !== 'N/A') await toggleArtistSubscription(artistName); 
@@ -441,7 +447,7 @@
                 '.recommend-checkbox-icon': () => { if (isAdminMode) { const itemId = playableItem?.dataset.itemId; if (itemId) toggleRecommendation(itemId); } }
             };
             for (const selector in actionMappings) {
-                if (target.closest(selector) || target.matches(selector)) { // Added target.matches for direct clicks on the icon
+                if (target.closest(selector) || target.matches(selector)) { 
                      event.stopPropagation(); actionMappings[selector](); return; 
                 }
             }
@@ -648,7 +654,6 @@
         @media (min-width: 768px) { 
             .youtube-playable { padding-top: 0; } 
         }
-        /* .item-artist-wrapper { display: flex; align-items: center; margin-bottom: 0.25rem;} */ /* Duplicated, removed one */
         .playlist-card { display: flex; align-items: center; padding: 0.75rem; border-radius: 0.5rem; transition: background-color 0.2s; }
         .playlist-card:hover { background-color: rgba(138, 43, 226, 0.2); }
         .playlist-cover { width: 4rem; height: 4rem; border-radius: 0.375rem; object-fit: cover; margin-right: 0.75rem; background-color: rgba(138, 43, 226, 0.3); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -908,7 +913,10 @@
                         <input type="checkbox" id="uploadIsInstrumental" name="uploadIsInstrumental" class="form-checkbox">
                         <label for="uploadIsInstrumental" class="text-sm ml-2">Instrumental (연주곡)</label>
                     </div>
-                    <button type="submit" class="w-full neon-accent-bg text-white font-semibold py-3 rounded-lg hover:bg-purple-700 transition-colors">업로드</button>
+                    <div class="flex space-x-4">
+                        <button type="submit" class="w-1/2 neon-accent-bg text-white font-semibold py-3 rounded-lg hover:bg-purple-700 transition-colors">업로드</button>
+                        <button type="button" id="cancelUploadButton" class="w-1/2 bg-gray-600 text-white font-semibold py-3 rounded-lg hover:bg-gray-700 transition-colors">취소</button>
+                    </div>
                 </form>
             </section>
 
