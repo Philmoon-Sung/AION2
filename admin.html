@@ -191,6 +191,7 @@
 
             // Upload Form Listeners
             document.getElementById('uploadForm')?.addEventListener('submit', handleUploadFormSubmit);
+            document.getElementById('uploadYoutubeLink')?.addEventListener('input', updateThumbnailPreviewFromUrlInput); // *** 수정된 부분: 썸네일 미리보기 업데이트 리스너 추가 ***
             const uploadInputsToWatch = ['uploadYoutubeLink', 'uploadTitle', 'uploadContentType', 'uploadAiMusicArtist', 'uploadSingerName', 'uploadAiTool'];
             uploadInputsToWatch.forEach(id => document.getElementById(id)?.addEventListener('input', updateUploadTagsFromSelections));
             document.getElementById('uploadIsInstrumental')?.addEventListener('change', updateUploadTagsFromSelections);
@@ -201,6 +202,7 @@
 
             // Edit Form Listeners
             document.getElementById('editItemForm')?.addEventListener('submit', handleEditFormSubmit);
+            document.getElementById('editYoutubeLink')?.addEventListener('input', updateEditThumbnailPreviewFromUrlInput); // For edit form
             const editInputsToWatch = ['editYoutubeLink', 'editTitle', 'editContentType', 'editAiMusicArtist', 'editSingerName', 'editAiTool'];
             editInputsToWatch.forEach(id => document.getElementById(id)?.addEventListener('input', updateEditTagsFromSelections));
             document.getElementById('editIsInstrumental')?.addEventListener('change', updateEditTagsFromSelections);
@@ -961,7 +963,7 @@
                     <label for="editIsInstrumental" class="text-sm ml-2">Instrumental (연주곡)</label>
                 </div>
                 <div class="flex justify-end space-x-3 pt-4">
-                    <button type="button" id="cancelEditItemButtonInModal" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg text-sm font-medium">취소</button> 
+                    <button type="button" id="cancelEditItemButtonInModalClose" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg text-sm font-medium">취소</button> 
                     <button type="submit" class="px-4 py-2 neon-accent-bg hover:bg-purple-700 rounded-lg text-sm font-medium">저장</button>
                 </div>
             </form>
