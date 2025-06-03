@@ -199,13 +199,12 @@
             document.getElementById('uploadTags')?.addEventListener('input', () => updateUploadTagsFromSelections(true)); 
             document.getElementById('uploadContentType')?.addEventListener('change', toggleUploadFields);
             toggleUploadFields(); 
-            // *** 추가된 부분: 새 콘텐츠 업로드 폼의 취소 버튼 이벤트 리스너 ***
             document.getElementById('cancelUploadButton')?.addEventListener('click', (e) => {
                 e.preventDefault();
                 document.getElementById('uploadForm').reset();
                 updateThumbnailPreview('', 'thumbnailPreview');
-                updateUploadTagsFromSelections(); // 태그 필드 초기화
-                toggleUploadFields(); // 콘텐츠 유형에 따른 필드 상태 초기화
+                updateUploadTagsFromSelections(); 
+                toggleUploadFields(); 
                 switchSection('home');
             });
 
@@ -298,8 +297,9 @@
                 if (!name || name === 'N/A') return '';
                 const isSubscribed = userSubscribedArtists.has(name);
                 const typeLabel = type === 'singer' ? '가수: ' : (type === 'ai-artist' ? 'AI 아티스트: ' : (type === 'ai-tool' ? 'AI 도구: ' : ''));
+                // *** 수정된 부분: 아티스트 이름 폰트 크기 및 스타일 적용 ***
                 return `<div class="item-artist-wrapper text-gray-400 truncate">
-                            <span class="mr-1">${typeLabel}${name}</span>
+                            <span class="mr-1 item-title">${typeLabel}${name}</span> 
                             ${userId && !userId.startsWith('guest-') ? 
                                 `<i class="${isSubscribed ? 'fas fa-heart text-red-500' : 'far fa-heart'} subscribe-artist-icon cursor-pointer ml-1 text-xs" data-artist-name="${name}" title="${isSubscribed ? name + ' 구독 취소' : name + ' 구독'}"></i>` 
                                 : ''}
@@ -638,13 +638,15 @@
         .toast-message.show { opacity: 1; }
 
         .item-title { font-size: 0.75rem; font-weight: 500; line-height: 1.2; margin-bottom: 0.125rem; } 
+        /* .item-artist class is now dynamically styled in JS for font size, but keep for other potential styling */
         .item-artist, .item-tags { font-size: 0.65rem; line-height: 1.2; } 
         .item-tags { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; min-height: calc(0.65rem * 1.2 * 2);  }
-        .item-artist-wrapper { display: flex; align-items: center; margin-bottom: 0.1rem; /* Adjusted margin */ }
+        .item-artist-wrapper { display: flex; align-items: center; margin-bottom: 0.1rem; }
 
 
         @media (min-width: 640px) { 
             .item-title { font-size: 0.875rem; } 
+            /* .item-artist class is now dynamically styled in JS for font size */
             .item-artist, .item-tags { font-size: 0.75rem; }
             .item-tags { min-height: calc(0.75rem * 1.2 * 2); }
             .item-action-icon-wrapper { flex-direction: row; gap: 0.35rem; } 
@@ -967,7 +969,7 @@
                  <div>
                     <label for="editContentType" class="form-label">콘텐츠 유형 <span class="text-red-500">*</span></label>
                     <select id="editContentType" name="editContentType" class="form-select" required>
-                        <option value="" disabled>유형 선택...</option>
+                        <option value="" disabled selected>유형 선택...</option>
                         <option value="ai-music">AI 생성 음악</option>
                         <option value="ai-mv">AI 생성 뮤직비디오</option>
                         <option value="general-music">일반 음악</option>
