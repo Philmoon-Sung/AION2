@@ -72,8 +72,10 @@
             const previousUserId = userId;
             if (currentUser) { 
                 userId = currentUser.uid; 
+                console.log("Auth state changed. User ID:", userId, "Anonymous:", currentUser.isAnonymous);
             } else { 
                 userId = null; 
+                console.log("Auth state changed. No user.");
             }
             
             document.getElementById('profileUserName').textContent = userId ? `사용자 (${userId.substring(0, 6)}...)` : '로그인 필요';
@@ -92,12 +94,21 @@
 
             if (!appInitialized) {
                 appInitialized = true;
+                console.log("App initializing for the first time.");
                 if (!currentUser) { 
+                    console.log("No current user, attempting sign-in.");
                     await attemptSignIn(); 
                 } else { 
+                    console.log("Current user exists, initializing app logic.");
                     await initializeAppLogic(); 
                 }
             } else if (userId !== previousUserId) { 
+                console.log("User changed, reloading all data.");
+                loadAllDataAndRender();
+            } else if (userId && previousUserId === userId) {
+                // User is the same, but auth state might have resolved (e.g., from null to anonymous)
+                // This ensures data loads if attemptSignIn was called and then onAuthStateChanged fires again for the same anonymous user
+                console.log("Auth state resolved for the same user, ensuring data is loaded.");
                 loadAllDataAndRender();
             }
         });
@@ -105,59 +116,77 @@
         async function attemptSignIn() { 
             try {
                 if (!auth.currentUser) {
+                     console.log("Attempting anonymous sign-in...");
                      await signInAnonymously(auth); 
-                     console.log("Signed in anonymously for user app.");
+                     console.log("Signed in anonymously for user app. UID:", auth.currentUser?.uid);
+                     // onAuthStateChanged will handle further logic including data loading
                 }
             } catch (error) { console.error("Error during anonymous sign-in (User):", error); showToast("로그인 오류: " + error.message, true); }
         }
 
         async function initializeAppLogic() {
+            console.log("Initializing app logic (event listeners and data load).");
             setupEventListeners(); 
-            if (userId || (auth.currentUser && auth.currentUser.isAnonymous)) { // 익명 사용자도 데이터 로드 허용
+            // Data loading is now primarily handled by onAuthStateChanged or explicit calls after sign-in
+            if (userId || (auth.currentUser && auth.currentUser.isAnonymous)) {
+                 console.log("User identified (or anonymous), proceeding to load data in initializeAppLogic.");
                  loadAllDataAndRender();
             } else {
+                console.log("No user (or not anonymous) in initializeAppLogic, clearing page content.");
                 clearPageContent();
             }
         }
 
         function loadAllDataAndRender() {
+            console.log("loadAllDataAndRender called. Current User ID:", userId);
             // 공개 콘텐츠는 항상 로드
             if (unsubscribeContentItems) unsubscribeContentItems(); 
+            console.log("Setting up onSnapshot for contentItems at path:", getContentItemsCollectionPath());
             unsubscribeContentItems = onSnapshot(query(collection(db, getContentItemsCollectionPath()), orderBy('createdAt', 'desc')), (snap) => {
-                allContentData = snap.docs.map(d => ({ ...d.data(), itemId: d.id })); renderPageContent();
-            }, (err) => { console.error("Error content (User):", err); showToast('콘텐츠 로딩 실패', true); });
+                console.log("Content items snapshot received, docs count:", snap.docs.length); 
+                allContentData = snap.docs.map(d => ({ ...d.data(), itemId: d.id }));
+                console.log("Processed allContentData, count:", allContentData.length); 
+                renderPageContent();
+            }, (err) => { console.error("Error loading content items (User):", err); showToast('콘텐츠 로딩 실패: ' + err.message, true); });
 
-            if (userId) { // 사용자 특정 데이터는 userId가 있을 때만 로드
+            if (userId) { 
+                console.log("User specific data loading for UID:", userId);
                 if (unsubscribePlaylists) unsubscribePlaylists();
                 unsubscribePlaylists = onSnapshot(query(collection(db, getUserPlaylistsCollectionPath(userId)), orderBy('createdAt', 'desc')), (snap) => {
+                    console.log("Playlists snapshot received, docs count:", snap.docs.length);
                     userPlaylists = snap.docs.map(d => ({ ...d.data(), id: d.id })); 
-                    renderMyPlaylists(); // 함수 호출
+                    renderMyPlaylists(); 
                     if (currentViewingPlaylistId && playlistDetailModal && !playlistDetailModal.classList.contains('hidden')) {
                         const p = userPlaylists.find(pl => pl.id === currentViewingPlaylistId); if (p) openPlaylistDetailModal(currentViewingPlaylistId); else closePlaylistDetailModal();
                     }
-                }, (err) => { console.error("Error playlists (User):", err); });
+                }, (err) => { console.error("Error loading playlists (User):", err); });
 
                 if (unsubscribeLikedItems) unsubscribeLikedItems();
                 unsubscribeLikedItems = onSnapshot(collection(db, getUserLikedItemsCollectionPath(userId)), (snap) => {
+                    console.log("Liked items snapshot received, docs count:", snap.docs.length);
                     userLikedItemIds.clear(); snap.forEach(d => userLikedItemIds.add(d.id)); 
-                    renderLikedSongs(); // 함수 호출
-                    // renderPageContent(); // 중복 호출 방지, 필요한 경우 각 렌더링 함수 내에서 카드 업데이트
-                }, (err) => { console.error("Error liked (User):", err);});
+                    renderLikedSongs(); 
+                }, (err) => { console.error("Error loading liked items (User):", err);});
 
                 if (unsubscribeSubscribedArtists) unsubscribeSubscribedArtists();
                 unsubscribeSubscribedArtists = onSnapshot(collection(db, getUserSubscribedArtistsCollectionPath(userId)), (snap) => {
+                    console.log("Subscribed artists snapshot received, docs count:", snap.docs.length);
                     userSubscribedArtists.clear(); snap.forEach(d => userSubscribedArtists.add(d.id)); 
-                    renderSubscribedArtists(); // 함수 호출
-                    // renderPageContent(); // 중복 호출 방지
-                }, (err) => { console.error("Error subscribed (User):", err); });
+                    renderSubscribedArtists(); 
+                }, (err) => { console.error("Error loading subscribed artists (User):", err); });
             } else { 
+                console.log("No userId, clearing user specific data and unsubscribing listeners.");
+                if (unsubscribePlaylists) { unsubscribePlaylists(); unsubscribePlaylists = null; }
                 userPlaylists = []; renderMyPlaylists();
+                if (unsubscribeLikedItems) { unsubscribeLikedItems(); unsubscribeLikedItems = null; }
                 userLikedItemIds.clear(); renderLikedSongs();
+                if (unsubscribeSubscribedArtists) { unsubscribeSubscribedArtists(); unsubscribeSubscribedArtists = null; }
                 userSubscribedArtists.clear(); renderSubscribedArtists();
             }
         }
         
         function clearPageContent() {
+            console.log("Clearing page content.");
             clearContainer(newUploadsContainer, newUploadsPlaceholder);
             if (newUploadsPlaceholder) {newUploadsPlaceholder.classList.remove('hidden'); newUploadsPlaceholder.textContent = "표시할 콘텐츠가 없습니다.";}
             clearContainer(aionChartContainer, aionChartPlaceholder);
@@ -393,11 +422,10 @@
         function closeAddToPlaylistModal() { if (addToPlaylistModal) addToPlaylistModal.classList.add('hidden'); currentItemToAddToPlaylist = null; }
         async function handleConfirmAddToPlaylist() { if (!userId || (auth.currentUser && auth.currentUser.isAnonymous) || !currentItemToAddToPlaylist) { showToast("로그인이 필요하거나 추가할 곡이 없습니다.", true); return;} const selRadio = playlistSelectionContainer.querySelector('input:checked'); const newName = newPlaylistNameInAddModalInput.value.trim(); let nameToast = ""; try { if (newName) { await addDoc(collection(db, getUserPlaylistsCollectionPath(userId)), { name: newName, items: [currentItemToAddToPlaylist], ownerId: userId, createdAt: serverTimestamp() }); nameToast = newName; showToast(`'${nameToast}'에 추가됨.`); } else if (selRadio) { const plId = selRadio.value; const pl = userPlaylists.find(p => p.id === plId); if (pl) { nameToast = pl.name; if (!pl.items.includes(currentItemToAddToPlaylist)) { await updateDoc(doc(db, getUserPlaylistsCollectionPath(userId), plId), { items: [...pl.items, currentItemToAddToPlaylist] }); showToast(`'${nameToast}'에 추가됨.`); } else { showToast('이미 있는 곡.'); } } else { showToast('플레이리스트 없음.', true); return; } } else { showToast('선택 또는 새 이름 입력.', true); return; } closeAddToPlaylistModal(); } catch (e) { console.error("Err adding to playlist:", e); showToast("추가 오류.", true); } }
         
-        // *** 추가된 함수: renderMyPlaylists ***
         function renderMyPlaylists() {
             if (!myPlaylistsContainer || !myPlaylistsPlaceholder) return;
             clearContainer(myPlaylistsContainer, myPlaylistsPlaceholder);
-            if (!userId || (auth.currentUser && auth.currentUser.isAnonymous && !userPlaylists.length)) { // 익명 사용자이고 플레이리스트가 없을 때
+            if (!userId || (auth.currentUser && auth.currentUser.isAnonymous && !userPlaylists.length)) { 
                 if(myPlaylistsPlaceholder) {
                     myPlaylistsPlaceholder.classList.remove('hidden');
                     myPlaylistsPlaceholder.textContent = "플레이리스트를 만들거나 보려면 로그인이 필요합니다.";
@@ -508,7 +536,6 @@
         function showConfirmationModal(message) { return new Promise((resolve) => { const m = document.getElementById('customConfirmModal'); if (m) m.remove(); const html = ` <div id="customConfirmModal" class="modal fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[100]"> <div class="glassmorphism p-6 rounded-lg shadow-xl w-full max-w-sm mx-4"> <p class="text-white mb-4 text-sm">${message}</p> <div class="flex justify-end space-x-3"> <button id="customConfirmCancel" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg text-sm font-medium text-white">취소</button> <button id="customConfirmOk" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium text-white">삭제</button> </div> </div> </div> `; document.body.insertAdjacentHTML('beforeend', html); const cM = document.getElementById('customConfirmModal'), okB = document.getElementById('customConfirmOk'), canB = document.getElementById('customConfirmCancel'); const rM = () => { if (cM) cM.remove(); }; okB.onclick = () => { rM(); resolve(true); }; canB.onclick = () => { rM(); resolve(false); }; }); }
         async function removeSongFromPlaylist(playlistId, itemIdToRemove) { if (!userId || (auth.currentUser && auth.currentUser.isAnonymous)) return; const pl = userPlaylists.find(p => p.id === playlistId); if (pl) { const items = pl.items.filter(id => id !== itemIdToRemove); try { await updateDoc(doc(db, getUserPlaylistsCollectionPath(userId), playlistId), { items }); showToast('곡 삭제됨.'); if (currentViewingPlaylistId === playlistId && playlistDetailModal && !playlistDetailModal.classList.contains('hidden')) { openPlaylistDetailModal(playlistId); } } catch (e) { console.error("Err removing song:", e); showToast("곡 삭제 오류.", true); } } }
         
-        // *** 추가된 함수: renderLikedSongs ***
         const likedSongsContainer = document.getElementById('likedSongsContainer'), likedSongsPlaceholder = document.getElementById('likedSongsPlaceholder');
         function renderLikedSongs() {
             if (!likedSongsContainer || !likedSongsPlaceholder) return;
@@ -562,7 +589,6 @@
 
         async function toggleLikeItem(itemId) { if (!userId || (auth.currentUser && auth.currentUser.isAnonymous)) { showToast("좋아요 기능은 로그인이 필요합니다.", true); return; } const ref = doc(db, getUserLikedItemsCollectionPath(userId), itemId); try { if (userLikedItemIds.has(itemId)) { await deleteDoc(ref); showToast('좋아요 취소.'); } else { await setDoc(ref, { likedAt: serverTimestamp(), itemId }); showToast('좋아요 곡 추가.'); } } catch (e) { console.error("Err toggling like:", e); showToast("좋아요 오류.", true); } }
         
-        // *** 추가된 함수: renderSubscribedArtists ***
         const subscribedArtistsContainer = document.getElementById('subscribedArtistsContainer'), subscribedArtistsPlaceholder = document.getElementById('subscribedArtistsPlaceholder');
         function renderSubscribedArtists() {
             if (!subscribedArtistsContainer || !subscribedArtistsPlaceholder) return;
